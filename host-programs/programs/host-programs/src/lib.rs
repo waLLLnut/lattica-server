@@ -18,7 +18,7 @@ use crate::types::*;
 declare_id!("FkLGYGk2bypUXgpGmcsCTmKZo6LCjHaXswbhY1LNGAKj");
 
 #[program]
-pub mod host_contracts {
+pub mod host_programs {
     use super::*;
 
     // -------------------------------------------------------------------
