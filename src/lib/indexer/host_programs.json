@@ -1,0 +1,579 @@
+{
+  "address": "FkLGYGk2bypUXgpGmcsCTmKZo6LCjHaXswbhY1LNGAKj",
+  "metadata": {
+    "name": "host_programs",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [],
+      "args": []
+    },
+    {
+      "name": "register_input_handle",
+      "discriminator": [
+        193,
+        24,
+        183,
+        126,
+        190,
+        221,
+        48,
+        65
+      ],
+      "accounts": [
+        {
+          "name": "caller"
+        }
+      ],
+      "args": [
+        {
+          "name": "handle",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "client_tag",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "request_binary_op",
+      "discriminator": [
+        180,
+        132,
+        67,
+        207,
+        224,
+        106,
+        38,
+        195
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "CHECK"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "op",
+          "type": {
+            "defined": {
+              "name": "Fhe16BinaryOp"
+            }
+          }
+        },
+        {
+          "name": "lhs_handle",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "rhs_handle",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "request_ternary_op",
+      "discriminator": [
+        45,
+        222,
+        188,
+        53,
+        99,
+        138,
+        227,
+        76
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "CHECK"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "op",
+          "type": {
+            "defined": {
+              "name": "Fhe16TernaryOp"
+            }
+          }
+        },
+        {
+          "name": "a_handle",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "b_handle",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "c_handle",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "request_unary_op",
+      "discriminator": [
+        213,
+        82,
+        51,
+        172,
+        87,
+        153,
+        52,
+        228
+      ],
+      "accounts": [
+        {
+          "name": "caller"
+        }
+      ],
+      "args": [
+        {
+          "name": "op",
+          "type": {
+            "defined": {
+              "name": "Fhe16UnaryOp"
+            }
+          }
+        },
+        {
+          "name": "input_handle",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "Fhe16BinaryOpRequested",
+      "discriminator": [
+        3,
+        243,
+        104,
+        241,
+        129,
+        170,
+        132,
+        253
+      ]
+    },
+    {
+      "name": "Fhe16TernaryOpRequested",
+      "discriminator": [
+        54,
+        150,
+        30,
+        131,
+        44,
+        105,
+        227,
+        17
+      ]
+    },
+    {
+      "name": "Fhe16UnaryOpRequested",
+      "discriminator": [
+        13,
+        83,
+        74,
+        61,
+        25,
+        249,
+        76,
+        247
+      ]
+    },
+    {
+      "name": "InputHandleRegistered",
+      "discriminator": [
+        132,
+        236,
+        56,
+        113,
+        153,
+        53,
+        60,
+        23
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "Fhe16BinaryOp",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "And"
+          },
+          {
+            "name": "Or"
+          },
+          {
+            "name": "Xor"
+          },
+          {
+            "name": "Add"
+          },
+          {
+            "name": "Sub"
+          },
+          {
+            "name": "SDiv"
+          },
+          {
+            "name": "Eq"
+          },
+          {
+            "name": "Neq"
+          },
+          {
+            "name": "Gt"
+          },
+          {
+            "name": "Ge"
+          },
+          {
+            "name": "Lt"
+          },
+          {
+            "name": "Le"
+          },
+          {
+            "name": "Max"
+          },
+          {
+            "name": "Min"
+          },
+          {
+            "name": "MaxOrMin"
+          },
+          {
+            "name": "Compare"
+          },
+          {
+            "name": "OrVec"
+          },
+          {
+            "name": "AndVec"
+          },
+          {
+            "name": "XorVec"
+          },
+          {
+            "name": "LShiftL"
+          },
+          {
+            "name": "SMulL"
+          },
+          {
+            "name": "AddPowTwo"
+          },
+          {
+            "name": "SubPowTwo"
+          },
+          {
+            "name": "GateTemplete"
+          },
+          {
+            "name": "PrefixTemplete"
+          },
+          {
+            "name": "AddPowTwoTemplete"
+          },
+          {
+            "name": "OrXor"
+          },
+          {
+            "name": "AndXor"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Fhe16BinaryOpRequested",
+      "docs": [
+        "FHE16 이항 연산 요청 (예: AND, OR, XOR, SDIV)"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "caller",
+            "type": "pubkey"
+          },
+          {
+            "name": "op",
+            "type": {
+              "defined": {
+                "name": "Fhe16BinaryOp"
+              }
+            }
+          },
+          {
+            "name": "lhs_handle",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "rhs_handle",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "result_handle",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Fhe16TernaryOp",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Add3"
+          },
+          {
+            "name": "Eq3"
+          },
+          {
+            "name": "Maj3"
+          },
+          {
+            "name": "Xor3"
+          },
+          {
+            "name": "Select"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Fhe16TernaryOpRequested",
+      "docs": [
+        "FHE16 삼항 연산 요청 (예: ADD3, EQ3)"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "caller",
+            "type": "pubkey"
+          },
+          {
+            "name": "op",
+            "type": {
+              "defined": {
+                "name": "Fhe16TernaryOp"
+              }
+            }
+          },
+          {
+            "name": "a_handle",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "b_handle",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "c_handle",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "result_handle",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Fhe16UnaryOp",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Not"
+          },
+          {
+            "name": "Abs"
+          },
+          {
+            "name": "Neg"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Fhe16UnaryOpRequested",
+      "docs": [
+        "FHE16 단항 연산 요청 (예: NOT)"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "caller",
+            "type": "pubkey"
+          },
+          {
+            "name": "op",
+            "type": {
+              "defined": {
+                "name": "Fhe16UnaryOp"
+              }
+            }
+          },
+          {
+            "name": "input_handle",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "result_handle",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "InputHandleRegistered",
+      "docs": [
+        "유저가 \"새로운 입력 handle\"을 등록할 때 찍는 이벤트"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "caller",
+            "type": "pubkey"
+          },
+          {
+            "name": "handle",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "client_tag",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
