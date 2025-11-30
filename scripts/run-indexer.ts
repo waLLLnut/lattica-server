@@ -11,13 +11,18 @@
 // 단순하고 견고한 인덱서 실행 스크립트
 // Polling 모드를 기본으로 사용하여 순서 보장
 
-import { getIndexer, cleanupIndexer } from "../src/lib/indexer";
+// .env.local 파일 로드 (독립 실행 시 필요)
+import { config } from "dotenv";
+import { resolve } from "path";
+config({ path: resolve(process.cwd(), ".env.local") });
+
+import { getIndexer, cleanupIndexer } from "@/lib/indexer";
 import type {
   InputHandleRegisteredEvent,
   Fhe16UnaryOpRequestedEvent,
   Fhe16BinaryOpRequestedEvent,
   Fhe16TernaryOpRequestedEvent,
-} from "../src/lib/indexer";
+} from "@/lib/indexer";
 
 // Next.js 환경에서 실행되는지 체크 (import 이후에 실행)
 if (process.env.NEXT_PHASE || process.env.NEXT_RUNTIME) {
@@ -29,10 +34,21 @@ if (process.env.NEXT_PHASE || process.env.NEXT_RUNTIME) {
 
 async function main() {
   // 로컬 네트워크 기본값 사용
-  const network = (process.env.NEXT_PUBLIC_NETWORK as "localnet" | "devnet" | "testnet" | "mainnet-beta") || "localnet";
-  const programId =
-    process.env.NEXT_PUBLIC_PROGRAM_ID ||
-    "FkLGYGk2bypUXgpGmcsCTmKZo6LCjHaXswbhY1LNGAKj";
+  const network = process.env.NEXT_PUBLIC_NETWORK as "localnet" | "devnet" | "mainnet-beta" | undefined;
+  const programId = process.env.NEXT_PUBLIC_PROGRAM_ID;
+  
+  if (!network) {
+    console.error("[ERROR] NEXT_PUBLIC_NETWORK environment variable is required");
+    console.error("[ERROR] Valid values: localnet, devnet, mainnet-beta");
+    console.error("[ERROR] Please set it in your .env.local file");
+    process.exit(1);
+  }
+  
+  if (!programId) {
+    console.error("[ERROR] NEXT_PUBLIC_PROGRAM_ID environment variable is required");
+    console.error("[ERROR] Please set it in your .env.local file");
+    process.exit(1);
+  }
 
   // 로컬 네트워크 엔드포인트
   const rpcEndpoint = network === "localnet" 
@@ -58,8 +74,6 @@ async function main() {
       programId,
       rpcEndpoint,
       wsEndpoint,
-      commitment: "confirmed",
-      pollInterval: 2000, // 2초 간격
     },
     {
     onInputHandleRegistered: async (event: InputHandleRegisteredEvent) => {

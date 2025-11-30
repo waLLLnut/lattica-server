@@ -1,80 +1,32 @@
 // src/lib/indexer/indexer.ts
+// Host Programs 인덱서 메인 클래스
 
 import { Connection, PublicKey, Finality } from "@solana/web3.js";
 import { EventParser, BorshCoder } from "@coral-xyz/anchor";
 import type { Idl } from "@coral-xyz/anchor";
 
-// 이벤트 타입 정의
-export interface BaseEvent {
-  signature: string;
-  slot: number;
-  blockTime: number | null;
-  caller: string;
-}
+// 타입 및 설정 import
+import type {
+  IndexedEvent,
+  IndexerConfig,
+  EventHandlers,
+  IndexerMode,
+} from "@/types/indexer";
+import { createDefaultConfig } from "./config";
 
-export interface InputHandleRegisteredEvent extends BaseEvent {
-  type: "InputHandleRegistered";
-  handle: number[];
-  clientTag: number[];
-}
-
-export interface Fhe16UnaryOpRequestedEvent extends BaseEvent {
-  type: "Fhe16UnaryOpRequested";
-  op: string;
-  inputHandle: number[];
-  resultHandle: number[];
-}
-
-export interface Fhe16BinaryOpRequestedEvent extends BaseEvent {
-  type: "Fhe16BinaryOpRequested";
-  op: string;
-  lhsHandle: number[];
-  rhsHandle: number[];
-  resultHandle: number[];
-}
-
-export interface Fhe16TernaryOpRequestedEvent extends BaseEvent {
-  type: "Fhe16TernaryOpRequested";
-  op: string;
-  aHandle: number[];
-  bHandle: number[];
-  cHandle: number[];
-  resultHandle: number[];
-}
-
-export type IndexedEvent =
-  | InputHandleRegisteredEvent
-  | Fhe16UnaryOpRequestedEvent
-  | Fhe16BinaryOpRequestedEvent
-  | Fhe16TernaryOpRequestedEvent;
-
-// 설정 타입
-export type Network = "localnet" | "devnet" | "testnet" | "mainnet-beta";
-export type Commitment = "processed" | "confirmed" | "finalized";
-
-export interface IndexerConfig {
-  network: Network;
-  programId: string;
-  rpcEndpoint?: string;
-  wsEndpoint?: string;
-  commitment?: Commitment;
-  pollInterval?: number;
-  maxBatches?: number; // 최대 배치 수 (환경변수로 제어 가능)
-}
-
-// Anchor Idl 타입 재export (싱글톤에서 사용)
-export type { Idl } from "@coral-xyz/anchor";
-
-export interface EventHandlers {
-  onInputHandleRegistered?: (event: InputHandleRegisteredEvent) => void | Promise<void>;
-  onFhe16UnaryOpRequested?: (event: Fhe16UnaryOpRequestedEvent) => void | Promise<void>;
-  onFhe16BinaryOpRequested?: (event: Fhe16BinaryOpRequestedEvent) => void | Promise<void>;
-  onFhe16TernaryOpRequested?: (event: Fhe16TernaryOpRequestedEvent) => void | Promise<void>;
-  onError?: (error: Error) => void;
-  onReconnect?: () => void;
-}
-
-export type IndexerMode = "websocket" | "polling";
+// 타입 재export (외부에서 사용)
+export type {
+  IndexedEvent,
+  InputHandleRegisteredEvent,
+  Fhe16UnaryOpRequestedEvent,
+  Fhe16BinaryOpRequestedEvent,
+  Fhe16TernaryOpRequestedEvent,
+  IndexerConfig,
+  EventHandlers,
+  IndexerMode,
+  Network,
+  Idl,
+} from "@/types/indexer";
 
 export class HostProgramsIndexer {
   private connection: Connection;
@@ -93,21 +45,8 @@ export class HostProgramsIndexer {
   private isRunning = false;
 
   constructor(config: IndexerConfig, idl: Idl) {
-    this.config = {
-      network: config.network,
-      programId: config.programId,
-      rpcEndpoint:
-        config.rpcEndpoint || this.getDefaultRpcEndpoint(config.network),
-      wsEndpoint:
-        config.wsEndpoint || this.getDefaultWsEndpoint(config.network),
-      commitment: config.commitment || "confirmed",
-      pollInterval:
-        config.pollInterval ||
-        (config.network === "localnet" ? 500 : 2000), // localnet은 더 빠르게
-      maxBatches:
-        config.maxBatches ||
-        parseInt(process.env.INDEXER_MAX_BATCHES || "100", 10),
-    };
+    // 설정 병합 및 기본값 적용
+    this.config = createDefaultConfig(config.network, config.programId, config);
 
     this.connection = new Connection(this.config.rpcEndpoint, {
       commitment: this.config.commitment,
@@ -119,26 +58,6 @@ export class HostProgramsIndexer {
     // Anchor EventParser 사용
     const coder = new BorshCoder(idl);
     this.eventParser = new EventParser(this.programId, coder);
-  }
-
-  private getDefaultRpcEndpoint(network: Network): string {
-    const endpoints = {
-      localnet: "http://127.0.0.1:8899",
-      devnet: "https://api.devnet.solana.com",
-      testnet: "https://api.testnet.solana.com",
-      "mainnet-beta": "https://api.mainnet-beta.solana.com",
-    };
-    return endpoints[network];
-  }
-
-  private getDefaultWsEndpoint(network: Network): string {
-    const endpoints = {
-      localnet: "ws://127.0.0.1:8900",
-      devnet: "wss://api.devnet.solana.com",
-      testnet: "wss://api.testnet.solana.com",
-      "mainnet-beta": "wss://api.mainnet-beta.solana.com",
-    };
-    return endpoints[network];
   }
 
   public on(handlers: EventHandlers): void {
@@ -228,10 +147,25 @@ export class HostProgramsIndexer {
 
     if (this.lastProcessedSlot === 0) {
       // 초기 슬롯 설정: 현재 슬롯에서 시작 (과거 트랜잭션은 제외)
-      this.lastProcessedSlot = await this.connection.getSlot(
-        this.config.commitment
-      );
-      console.log(`[INFO] Initial slot set: ${this.lastProcessedSlot}`);
+      // 재시도 로직 추가
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          this.lastProcessedSlot = await this.connection.getSlot(
+            this.config.commitment
+          );
+          console.log(`[INFO] Initial slot set: ${this.lastProcessedSlot}`);
+          break;
+        } catch (error) {
+          retries--;
+          if (retries === 0) {
+            console.error(`[ERROR] Failed to get initial slot after 3 attempts: ${error}`);
+            throw error;
+          }
+          console.warn(`[WARN] Failed to get initial slot, retrying... (${3 - retries}/3)`);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
     }
 
     this.pollIntervalId = setInterval(async () => {
@@ -354,7 +288,7 @@ export class HostProgramsIndexer {
     let before: string | undefined = undefined; // 최신부터 시작
     let hasMore = true;
     let batchCount = 0;
-    const maxBatches = 100; // 무한 루프 방지
+    const maxBatches = this.config.maxBatches;
 
     while (hasMore && batchCount < maxBatches) {
       try {

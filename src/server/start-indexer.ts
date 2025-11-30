@@ -42,15 +42,20 @@ export async function startIndexerInNextJs(
   // 시작 중 Promise 생성
   startPromise = (async () => {
     try {
-        const network =
-          (process.env.NEXT_PUBLIC_NETWORK as
-            | "localnet"
-            | "devnet"
-            | "testnet"
-            | "mainnet-beta") || "localnet";
-        const programId =
-          process.env.NEXT_PUBLIC_PROGRAM_ID ||
-          "FkLGYGk2bypUXgpGmcsCTmKZo6LCjHaXswbhY1LNGAKj";
+        const network = process.env.NEXT_PUBLIC_NETWORK as
+          | "localnet"
+          | "devnet"
+          | "mainnet-beta"
+          | undefined;
+        const programId = process.env.NEXT_PUBLIC_PROGRAM_ID;
+        
+        if (!network) {
+          throw new Error("NEXT_PUBLIC_NETWORK environment variable is required (localnet|devnet|mainnet-beta)");
+        }
+        
+        if (!programId) {
+          throw new Error("NEXT_PUBLIC_PROGRAM_ID environment variable is required");
+        }
 
         // 로컬 네트워크 엔드포인트
         const rpcEndpoint =
@@ -111,14 +116,14 @@ export async function startIndexerInNextJs(
         };
 
         // 싱글톤 인덱서 가져오기 (Polling 모드로 자동 시작)
+        // 모든 설정은 env.local에서 필수로 제공되어야 함
         await getIndexer(
           {
             network,
             programId,
             rpcEndpoint,
             wsEndpoint,
-            commitment: "confirmed",
-            pollInterval: network === "localnet" ? 500 : 2000,
+            // commitment, pollInterval, maxBatches는 createDefaultConfig에서 환경변수로부터 필수로 가져옴
           },
           defaultHandlers
         );

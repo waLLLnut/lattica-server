@@ -1,11 +1,13 @@
 // src/lib/indexer/index.ts
 
-import { HostProgramsIndexer } from "./indexer";
-import type { IndexerConfig, EventHandlers } from "./indexer";
+import { HostProgramsIndexer } from "@/lib/indexer/indexer";
+import type { IndexerConfig, EventHandlers } from "@/types/indexer";
+import { createDefaultConfig } from "@/lib/indexer/config";
 import type { Idl as AnchorIdl } from "@coral-xyz/anchor";
-import idl from "./host_programs.json";
+import idl from "@/idl/host_programs.json";
 
-export { HostProgramsIndexer } from "./indexer";
+// 모든 타입 및 클래스 재export
+export { HostProgramsIndexer } from "@/lib/indexer/indexer";
 export type {
   IndexedEvent,
   InputHandleRegisteredEvent,
@@ -15,7 +17,8 @@ export type {
   IndexerConfig,
   EventHandlers,
   IndexerMode,
-} from "./indexer";
+  Network,
+} from "@/types/indexer";
 
 /**
  * Next.js 환경에서 싱글톤 인덱서 인스턴스 관리
@@ -27,7 +30,7 @@ const globalForIndexer = globalThis as unknown as {
 
 /**
  * 싱글톤 인덱서 인스턴스 가져오기 또는 생성
- * @param config - 인덱서 설정 (선택적, 기본값 사용)
+ * @param config - 인덱서 설정 (선택적, 환경변수에서 필수 값 가져옴)
  * @param handlers - 이벤트 핸들러 (선택적)
  * @returns 인덱서 인스턴스
  */
@@ -45,16 +48,19 @@ export async function getIndexer(
   }
 
   // 기본 설정
-  const network = (process.env.NEXT_PUBLIC_NETWORK as "localnet" | "devnet" | "testnet" | "mainnet-beta") || "localnet";
-  const defaultConfig: IndexerConfig = {
-    network,
-    programId: process.env.NEXT_PUBLIC_PROGRAM_ID || "FkLGYGk2bypUXgpGmcsCTmKZo6LCjHaXswbhY1LNGAKj",
-    commitment: "confirmed",
-    pollInterval: network === "localnet" ? 500 : 2000, // localnet은 더 빠르게
-    maxBatches: parseInt(process.env.INDEXER_MAX_BATCHES || "100", 10),
-  };
+  const network = process.env.NEXT_PUBLIC_NETWORK as "localnet" | "devnet" | "mainnet-beta" | undefined;
+  const programId = process.env.NEXT_PUBLIC_PROGRAM_ID;
+  
+  if (!network) {
+    throw new Error("NEXT_PUBLIC_NETWORK environment variable is required (localnet|devnet|mainnet-beta)");
+  }
+  
+  if (!programId) {
+    throw new Error("NEXT_PUBLIC_PROGRAM_ID environment variable is required");
+  }
 
-  const finalConfig = { ...defaultConfig, ...config };
+  // createDefaultConfig로 모든 설정 처리 (환경변수에서 필수 값 가져옴)
+  const finalConfig = createDefaultConfig(network, programId, config);
 
   // 새 인스턴스 생성
   globalForIndexer.indexer = new HostProgramsIndexer(
