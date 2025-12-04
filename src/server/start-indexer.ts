@@ -116,14 +116,12 @@ export async function startIndexerInNextJs(
         };
 
         // 싱글톤 인덱서 가져오기 (Polling 모드로 자동 시작)
-        // 모든 설정은 env.local에서 필수로 제공되어야 함
         await getIndexer(
           {
             network,
             programId,
             rpcEndpoint,
             wsEndpoint,
-            // commitment, pollInterval, maxBatches는 createDefaultConfig에서 환경변수로부터 필수로 가져옴
           },
           defaultHandlers
         );
