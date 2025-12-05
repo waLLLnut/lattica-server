@@ -1,0 +1,468 @@
+{
+	"info": {
+		"_postman_id": "host-programs-actions-001",
+		"name": "Host Programs Actions API",
+		"description": "Solana Actions API for Host Programs - FHE16 Operations",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Register Input Handle",
+			"item": [
+				{
+					"name": "GET - Metadata",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/actions/register_input_handle",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "register_input_handle"]
+						},
+						"description": "Get metadata for register input handle action"
+					},
+					"response": []
+				},
+				{
+					"name": "POST - Create Transaction",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account\": \"{{account}}\",\n  \"data\": {\n    \"handle\": \"0101010101010101010101010101010101010101010101010101010101010101\",\n    \"client_tag\": \"0202020202020202020202020202020202020202020202020202020202020202\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/actions/register_input_handle",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "register_input_handle"]
+						},
+						"description": "Create transaction to register input handle"
+					},
+					"response": []
+				}
+			],
+			"description": "Register a new input handle for FHE16 operations"
+		},
+		{
+			"name": "Request Unary Operation",
+			"item": [
+				{
+					"name": "GET - Metadata",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_unary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_unary_op"]
+						},
+						"description": "Get metadata for unary operation action"
+					},
+					"response": []
+				},
+				{
+					"name": "POST - NOT Operation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account\": \"{{account}}\",\n  \"data\": {\n    \"op\": \"0\",\n    \"input_handle\": \"0101010101010101010101010101010101010101010101010101010101010101\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_unary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_unary_op"]
+						},
+						"description": "Request NOT operation (op=0)"
+					},
+					"response": []
+				},
+				{
+					"name": "POST - ABS Operation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account\": \"{{account}}\",\n  \"data\": {\n    \"op\": \"1\",\n    \"input_handle\": \"0101010101010101010101010101010101010101010101010101010101010101\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_unary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_unary_op"]
+						},
+						"description": "Request ABS operation (op=1)"
+					},
+					"response": []
+				},
+				{
+					"name": "POST - NEG Operation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account\": \"{{account}}\",\n  \"data\": {\n    \"op\": \"2\",\n    \"input_handle\": \"0101010101010101010101010101010101010101010101010101010101010101\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_unary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_unary_op"]
+						},
+						"description": "Request NEG operation (op=2)"
+					},
+					"response": []
+				}
+			],
+			"description": "Request unary FHE16 operations (NOT, ABS, NEG)"
+		},
+		{
+			"name": "Request Binary Operation",
+			"item": [
+				{
+					"name": "GET - Metadata",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_binary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_binary_op"]
+						},
+						"description": "Get metadata for binary operation action"
+					},
+					"response": []
+				},
+				{
+					"name": "POST - ADD Operation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account\": \"{{account}}\",\n  \"data\": {\n    \"op\": \"3\",\n    \"lhs_handle\": \"0101010101010101010101010101010101010101010101010101010101010101\",\n    \"rhs_handle\": \"0202020202020202020202020202020202020202020202020202020202020202\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_binary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_binary_op"]
+						},
+						"description": "Request ADD operation (op=3)"
+					},
+					"response": []
+				},
+				{
+					"name": "POST - SUB Operation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account\": \"{{account}}\",\n  \"data\": {\n    \"op\": \"4\",\n    \"lhs_handle\": \"0101010101010101010101010101010101010101010101010101010101010101\",\n    \"rhs_handle\": \"0202020202020202020202020202020202020202020202020202020202020202\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_binary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_binary_op"]
+						},
+						"description": "Request SUB operation (op=4)"
+					},
+					"response": []
+				},
+				{
+					"name": "POST - AND Operation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account\": \"{{account}}\",\n  \"data\": {\n    \"op\": \"0\",\n    \"lhs_handle\": \"0101010101010101010101010101010101010101010101010101010101010101\",\n    \"rhs_handle\": \"0202020202020202020202020202020202020202020202020202020202020202\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_binary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_binary_op"]
+						},
+						"description": "Request AND operation (op=0)"
+					},
+					"response": []
+				},
+				{
+					"name": "POST - OR Operation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account\": \"{{account}}\",\n  \"data\": {\n    \"op\": \"1\",\n    \"lhs_handle\": \"0101010101010101010101010101010101010101010101010101010101010101\",\n    \"rhs_handle\": \"0202020202020202020202020202020202020202020202020202020202020202\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_binary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_binary_op"]
+						},
+						"description": "Request OR operation (op=1)"
+					},
+					"response": []
+				}
+			],
+			"description": "Request binary FHE16 operations (ADD, SUB, AND, OR, etc.)"
+		},
+		{
+			"name": "Request Ternary Operation",
+			"item": [
+				{
+					"name": "GET - Metadata",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_ternary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_ternary_op"]
+						},
+						"description": "Get metadata for ternary operation action"
+					},
+					"response": []
+				},
+				{
+					"name": "POST - ADD3 Operation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account\": \"{{account}}\",\n  \"data\": {\n    \"op\": \"0\",\n    \"a_handle\": \"0101010101010101010101010101010101010101010101010101010101010101\",\n    \"b_handle\": \"0202020202020202020202020202020202020202020202020202020202020202\",\n    \"c_handle\": \"0303030303030303030303030303030303030303030303030303030303030303\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_ternary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_ternary_op"]
+						},
+						"description": "Request ADD3 operation (op=0)"
+					},
+					"response": []
+				},
+				{
+					"name": "POST - EQ3 Operation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account\": \"{{account}}\",\n  \"data\": {\n    \"op\": \"1\",\n    \"a_handle\": \"0101010101010101010101010101010101010101010101010101010101010101\",\n    \"b_handle\": \"0202020202020202020202020202020202020202020202020202020202020202\",\n    \"c_handle\": \"0303030303030303030303030303030303030303030303030303030303030303\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_ternary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_ternary_op"]
+						},
+						"description": "Request EQ3 operation (op=1)"
+					},
+					"response": []
+				},
+				{
+					"name": "POST - MAJ3 Operation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account\": \"{{account}}\",\n  \"data\": {\n    \"op\": \"2\",\n    \"a_handle\": \"0101010101010101010101010101010101010101010101010101010101010101\",\n    \"b_handle\": \"0202020202020202020202020202020202020202020202020202020202020202\",\n    \"c_handle\": \"0303030303030303030303030303030303030303030303030303030303030303\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_ternary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_ternary_op"]
+						},
+						"description": "Request MAJ3 operation (op=2)"
+					},
+					"response": []
+				},
+				{
+					"name": "POST - XOR3 Operation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account\": \"{{account}}\",\n  \"data\": {\n    \"op\": \"3\",\n    \"a_handle\": \"0101010101010101010101010101010101010101010101010101010101010101\",\n    \"b_handle\": \"0202020202020202020202020202020202020202020202020202020202020202\",\n    \"c_handle\": \"0303030303030303030303030303030303030303030303030303030303030303\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_ternary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_ternary_op"]
+						},
+						"description": "Request XOR3 operation (op=3)"
+					},
+					"response": []
+				},
+				{
+					"name": "POST - SELECT Operation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"account\": \"{{account}}\",\n  \"data\": {\n    \"op\": \"4\",\n    \"a_handle\": \"0101010101010101010101010101010101010101010101010101010101010101\",\n    \"b_handle\": \"0202020202020202020202020202020202020202020202020202020202020202\",\n    \"c_handle\": \"0303030303030303030303030303030303030303030303030303030303030303\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/actions/request_ternary_op",
+							"host": ["{{base_url}}"],
+							"path": ["api", "actions", "request_ternary_op"]
+						},
+						"description": "Request SELECT operation (op=4)"
+					},
+					"response": []
+				}
+			],
+			"description": "Request ternary FHE16 operations (ADD3, EQ3, MAJ3, XOR3, SELECT)"
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "account",
+			"value": "11111111111111111111111111111111",
+			"type": "string",
+			"description": "Solana wallet public key (base58 encoded, 32-44 chars). Example: 11111111111111111111111111111111 (System Program). Replace with your actual public key!"
+		}
+	]
+}
+

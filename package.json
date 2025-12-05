@@ -35,6 +35,7 @@
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@solana-mobile/wallet-standard-mobile": "^0.4.1",
+    "@solana/actions": "^1.6.6",
     "@solana/web3.js": "^1.98.4",
     "@tanstack/react-query": "^5.89.0",
     "@wallet-ui/react": "2.0.0",
