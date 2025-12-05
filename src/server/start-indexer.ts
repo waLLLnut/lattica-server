@@ -9,6 +9,9 @@ import type {
   Fhe16BinaryOpRequestedEvent,
   Fhe16TernaryOpRequestedEvent,
 } from "@/lib/indexer";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("IndexerStartup");
 
 let started = false;
 let startPromise: Promise<void> | null = null;
@@ -65,53 +68,71 @@ export async function startIndexerInNextJs(
 
         // 프로덕션에서는 간소한 로그만
         if (process.env.NODE_ENV === "production") {
-          console.log("[INFO] Starting FHE indexer in Next.js server (singleton)");
+          log.info("Starting FHE indexer in Next.js server (singleton)");
         } else {
-          console.log("[INFO] Starting indexer in Next.js (singleton guaranteed)");
-          console.log(`[INFO] Network: ${network}`);
-          if (network === "localnet") {
-            console.log(`[INFO] RPC Endpoint: ${rpcEndpoint}`);
-            console.log(`[INFO] WebSocket Endpoint: ${wsEndpoint}`);
-          }
-          console.log(`[INFO] Program ID: ${programId}`);
-          console.log(`[INFO] Mode: Polling (sequential order guaranteed)`);
+          log.info("Starting indexer in Next.js (singleton guaranteed)", {
+            network,
+            rpc_endpoint: network === "localnet" ? rpcEndpoint : undefined,
+            ws_endpoint: network === "localnet" ? wsEndpoint : undefined,
+            program_id: programId,
+            mode: "Polling (sequential order guaranteed)",
+          });
         }
 
         // 기본 핸들러 (handlers가 제공되지 않은 경우)
         const defaultHandlers = handlers || {
           onInputHandleRegistered: async (event: InputHandleRegisteredEvent) => {
-            console.log(`[INFO] InputHandleRegistered: caller=${event.caller} slot=${event.slot} signature=${event.signature}`);
+            log.info("InputHandleRegistered", {
+              caller: event.caller,
+              slot: event.slot,
+              signature: event.signature,
+            });
             // TODO: 여기에 DB 저장, 큐에 넣기 등의 로직 추가
           },
 
           onFhe16UnaryOpRequested: async (
             event: Fhe16UnaryOpRequestedEvent
           ) => {
-            console.log(`[INFO] Fhe16UnaryOpRequested: op=${event.op} caller=${event.caller} slot=${event.slot} signature=${event.signature}`);
+            log.info("Fhe16UnaryOpRequested", {
+              op: event.op,
+              caller: event.caller,
+              slot: event.slot,
+              signature: event.signature,
+            });
             // TODO: 여기에 FHE 연산 큐에 넣기 등의 로직 추가
           },
 
           onFhe16BinaryOpRequested: async (
             event: Fhe16BinaryOpRequestedEvent
           ) => {
-            console.log(`[INFO] Fhe16BinaryOpRequested: op=${event.op} caller=${event.caller} slot=${event.slot} signature=${event.signature}`);
+            log.info("Fhe16BinaryOpRequested", {
+              op: event.op,
+              caller: event.caller,
+              slot: event.slot,
+              signature: event.signature,
+            });
             // TODO: 여기에 FHE 연산 큐에 넣기 등의 로직 추가
           },
 
           onFhe16TernaryOpRequested: async (
             event: Fhe16TernaryOpRequestedEvent
           ) => {
-            console.log(`[INFO] Fhe16TernaryOpRequested: op=${event.op} caller=${event.caller} slot=${event.slot} signature=${event.signature}`);
+            log.info("Fhe16TernaryOpRequested", {
+              op: event.op,
+              caller: event.caller,
+              slot: event.slot,
+              signature: event.signature,
+            });
             // TODO: 여기에 FHE 연산 큐에 넣기 등의 로직 추가
           },
 
           onError: (error: Error) => {
-            console.error(`[ERROR] Indexer error: ${error.message}`);
+            log.error("Indexer error", error);
             // TODO: 여기에 에러 모니터링 (Sentry 등) 추가
           },
 
           onReconnect: () => {
-            console.log("[INFO] Reconnecting...");
+            log.info("Reconnecting");
           },
         };
 
@@ -127,13 +148,13 @@ export async function startIndexerInNextJs(
         );
 
         if (process.env.NODE_ENV === "production") {
-          console.log("[INFO] FHE indexer started (singleton)");
+          log.info("FHE indexer started (singleton)");
         } else {
-          console.log("[INFO] Indexer started (Next.js singleton)");
+          log.info("Indexer started (Next.js singleton)");
         }
       started = true;
     } catch (error) {
-      console.error("[ERROR] Failed to start indexer:", error);
+      log.error("Failed to start indexer", error);
       startPromise = null; // 실패 시 재시도 가능하도록
       throw error;
     }

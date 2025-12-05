@@ -5,6 +5,9 @@ import type { IndexerConfig, EventHandlers } from "@/types/indexer";
 import { createDefaultConfig } from "@/lib/indexer/config";
 import type { Idl as AnchorIdl } from "@coral-xyz/anchor";
 import idl from "@/idl/host_programs.json";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("IndexerFactory");
 
 // 모든 타입 및 클래스 재export
 export { HostProgramsIndexer } from "@/lib/indexer/indexer";
@@ -75,14 +78,14 @@ export async function getIndexer(
     // 개발 환경에서만 기본 로깅 핸들러 제공
     globalForIndexer.indexer.on({
       onInputHandleRegistered: (e) =>
-        console.log(`[INFO] InputHandleRegistered: caller=${e.caller} slot=${e.slot}`),
+        log.info("InputHandleRegistered", { caller: e.caller, slot: e.slot }),
       onFhe16UnaryOpRequested: (e) =>
-        console.log(`[INFO] Fhe16UnaryOpRequested: op=${e.op} caller=${e.caller} slot=${e.slot}`),
+        log.info("Fhe16UnaryOpRequested", { op: e.op, caller: e.caller, slot: e.slot }),
       onFhe16BinaryOpRequested: (e) =>
-        console.log(`[INFO] Fhe16BinaryOpRequested: op=${e.op} caller=${e.caller} slot=${e.slot}`),
+        log.info("Fhe16BinaryOpRequested", { op: e.op, caller: e.caller, slot: e.slot }),
       onFhe16TernaryOpRequested: (e) =>
-        console.log(`[INFO] Fhe16TernaryOpRequested: op=${e.op} caller=${e.caller} slot=${e.slot}`),
-      onError: (err) => console.error(`[ERROR] Indexer error: ${err.message}`),
+        log.info("Fhe16TernaryOpRequested", { op: e.op, caller: e.caller, slot: e.slot }),
+      onError: (err) => log.error("Indexer error", err),
     });
   }
 

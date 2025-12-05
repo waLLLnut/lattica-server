@@ -13,6 +13,9 @@ import type {
   IndexerMode,
 } from "@/types/indexer";
 import { createDefaultConfig } from "./config";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("Indexer");
 
 // 타입 재export (외부에서 사용)
 export type {
@@ -70,7 +73,7 @@ export class HostProgramsIndexer {
    */
   public async start(mode: IndexerMode = "websocket"): Promise<void> {
     if (this.isRunning) {
-      console.warn(`[WARN] Indexer already running (mode: ${this.currentMode})`);
+      log.warn("Indexer already running", { mode: this.currentMode });
       return;
     }
 
@@ -90,19 +93,19 @@ export class HostProgramsIndexer {
   public async startWebSocketSubscription(): Promise<void> {
     // 기존 구독이 있으면 제거
     if (this.subscriptionId !== null) {
-      console.warn("[WARN] Existing WebSocket subscription found, removing before re-subscribing");
+      log.warn("Existing WebSocket subscription found, removing before re-subscribing");
       await this.connection.removeOnLogsListener(this.subscriptionId);
       this.subscriptionId = null;
     }
 
     // 폴링이 실행 중이면 중지
     if (this.isPolling) {
-      console.warn("[WARN] Polling mode is active, stopping before switching to WebSocket mode");
+      log.warn("Polling mode is active, stopping before switching to WebSocket mode");
       await this.stopPolling();
     }
 
     try {
-      console.log(`[INFO] Starting WebSocket subscription for program: ${this.programId.toString()}`);
+      log.info("Starting WebSocket subscription", { program_id: this.programId.toString() });
 
       this.subscriptionId = this.connection.onLogs(
         this.programId,
@@ -116,7 +119,7 @@ export class HostProgramsIndexer {
         this.config.commitment
       );
 
-      console.log(`[INFO] WebSocket subscription established (id: ${this.subscriptionId})`);
+      log.info("WebSocket subscription established", { subscription_id: this.subscriptionId });
       this.reconnectAttempts = 0;
       this.currentMode = "websocket";
     } catch (error) {
@@ -130,20 +133,20 @@ export class HostProgramsIndexer {
    */
   public async startPolling(): Promise<void> {
     if (this.isPolling) {
-      console.warn("[WARN] Polling is already active");
+      log.warn("Polling is already active");
       return;
     }
 
     // WebSocket 구독이 있으면 제거
     if (this.subscriptionId !== null) {
-      console.warn("[WARN] WebSocket subscription found, removing before switching to polling mode");
+      log.warn("WebSocket subscription found, removing before switching to polling mode");
       await this.connection.removeOnLogsListener(this.subscriptionId);
       this.subscriptionId = null;
     }
 
     this.isPolling = true;
     this.currentMode = "polling";
-    console.log(`[INFO] Starting polling mode (interval: ${this.config.pollInterval}ms)`);
+    log.info("Starting polling mode", { interval_ms: this.config.pollInterval });
 
     if (this.lastProcessedSlot === 0) {
       // 초기 슬롯 설정: 현재 슬롯에서 시작 (과거 트랜잭션은 제외)
@@ -154,15 +157,18 @@ export class HostProgramsIndexer {
           this.lastProcessedSlot = await this.connection.getSlot(
             this.config.commitment
           );
-          console.log(`[INFO] Initial slot set: ${this.lastProcessedSlot}`);
+          log.info("Initial slot set", { slot: this.lastProcessedSlot });
           break;
         } catch (error) {
           retries--;
           if (retries === 0) {
-            console.error(`[ERROR] Failed to get initial slot after 3 attempts: ${error}`);
+            log.error("Failed to get initial slot after 3 attempts", error);
             throw error;
           }
-          console.warn(`[WARN] Failed to get initial slot, retrying... (${3 - retries}/3)`);
+          log.warn("Failed to get initial slot, retrying", { 
+            attempt: 3 - retries,
+            max_attempts: 3 
+          });
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
@@ -206,7 +212,7 @@ export class HostProgramsIndexer {
         return;
       }
 
-      console.log(`[INFO] Found ${allNewSignatures.length} new transaction(s)`);
+      log.info("Found new transactions", { count: allNewSignatures.length });
 
       // 슬롯 순서대로 정렬 (중요: 순서 보장)
       allNewSignatures.sort((a, b) => {
@@ -233,12 +239,12 @@ export class HostProgramsIndexer {
           });
 
           if (!tx) {
-            console.warn(`[WARN] Transaction not found: ${sigInfo.signature}`);
+            log.warn("Transaction not found", { signature: sigInfo.signature });
             continue;
           }
 
           if (!tx.meta?.logMessages) {
-            console.warn(`[WARN] Transaction has no log messages: ${sigInfo.signature}`);
+            log.warn("Transaction has no log messages", { signature: sigInfo.signature });
             continue;
           }
 
@@ -254,7 +260,7 @@ export class HostProgramsIndexer {
           this.lastProcessedSlot = sigInfo.slot;
           this.lastProcessedSignature = sigInfo.signature;
         } catch (error) {
-          console.error(`[ERROR] Failed to process transaction: ${sigInfo.signature}`, error);
+          log.error("Failed to process transaction", error, { signature: sigInfo.signature });
           this.handleError(error as Error);
           // 에러가 발생해도 다음 트랜잭션 계속 처리
         }
@@ -262,12 +268,14 @@ export class HostProgramsIndexer {
 
       if (allNewSignatures.length > 0) {
         const lastSig = allNewSignatures[allNewSignatures.length - 1];
-        console.log(
-          `[INFO] Processing complete: slot ${this.lastProcessedSlot} → ${lastSig.slot} (${allNewSignatures.length} transaction(s))`
-        );
+        log.info("Processing complete", {
+          from_slot: this.lastProcessedSlot,
+          to_slot: lastSig.slot,
+          transaction_count: allNewSignatures.length,
+        });
       }
     } catch (error) {
-      console.error("[ERROR] Polling error:", error);
+      log.error("Polling error", error);
       this.handleError(error as Error);
     }
   }
@@ -340,7 +348,7 @@ export class HostProgramsIndexer {
           break;
         }
       } catch (error) {
-        console.error("[ERROR] Failed to fetch transactions:", error);
+        log.error("Failed to fetch transactions", error);
         this.handleError(error as Error);
         hasMore = false;
         break;
@@ -348,13 +356,17 @@ export class HostProgramsIndexer {
     }
 
     if (batchCount >= maxBatches) {
-      console.warn(
-        `[WARN] Reached maximum batch count (${maxBatches}), some transactions may be missing`
-      );
+      log.warn("Reached maximum batch count", {
+        max_batches: maxBatches,
+        message: "Some transactions may be missing",
+      });
     }
 
     if (process.env.NODE_ENV === "development" && batchCount > 0) {
-      console.log(`[DEBUG] Found ${allSignatures.length} new transaction(s) across ${batchCount} batch(es)`);
+      log.debug("Found new transactions across batches", {
+        transaction_count: allSignatures.length,
+        batch_count: batchCount,
+      });
     }
 
     return allSignatures;
@@ -373,12 +385,12 @@ export class HostProgramsIndexer {
       const firstSlot = signatures[0].slot;
       const gap = firstSlot - this.lastProcessedSlot;
       if (gap > 1) {
-        console.warn(
-          `[WARN] Slot gap detected: ${this.lastProcessedSlot} → ${firstSlot} (gap: ${gap} slot(s))`
-        );
-        console.warn(
-          `[WARN] Transactions in intermediate slots may be missing, manual verification may be required`
-        );
+        log.warn("Slot gap detected", {
+          from_slot: this.lastProcessedSlot,
+          to_slot: firstSlot,
+          gap_slots: gap,
+          message: "Transactions in intermediate slots may be missing, manual verification may be required",
+        });
       }
     }
 
@@ -386,12 +398,13 @@ export class HostProgramsIndexer {
     for (let i = 1; i < signatures.length; i++) {
       const gap = signatures[i].slot - signatures[i - 1].slot;
       if (gap > 1) {
-        console.warn(
-          `[WARN] Transaction slot gap detected: ${signatures[i - 1].slot} → ${signatures[i].slot} (gap: ${gap} slot(s))`
-        );
-        console.warn(
-          `[WARN] Signatures: ${signatures[i - 1].signature} → ${signatures[i].signature}`
-        );
+        log.warn("Transaction slot gap detected", {
+          from_slot: signatures[i - 1].slot,
+          to_slot: signatures[i].slot,
+          gap_slots: gap,
+          from_signature: signatures[i - 1].signature,
+          to_signature: signatures[i].signature,
+        });
       }
     }
   }
@@ -422,8 +435,7 @@ export class HostProgramsIndexer {
     try {
       // 디버깅: 원본 로그 출력 (개발 환경에서만)
       if (process.env.NODE_ENV === "development") {
-        console.log(`[DEBUG] Parsing logs for transaction: ${signature}`);
-        console.log(`[DEBUG] Log count: ${logs.length}`);
+        log.debug("Parsing logs for transaction", { signature, log_count: logs.length });
       }
 
       // Anchor EventParser로 이벤트 파싱
@@ -432,10 +444,15 @@ export class HostProgramsIndexer {
       const events = Array.from(eventsIter);
 
       if (process.env.NODE_ENV === "development") {
-        console.log(`[DEBUG] Parsed event count: ${events.length}`);
+        log.debug("Parsed events", { 
+          event_count: events.length,
+          signature,
+        });
         if (events.length === 0) {
-          console.warn(`[DEBUG] No events parsed, check logs`);
-          console.warn(`[DEBUG] Log sample:`, logs.slice(0, 5));
+          log.warn("No events parsed, check logs", { 
+            signature,
+            log_sample: logs.slice(0, 5),
+          });
         }
       }
 
@@ -451,7 +468,7 @@ export class HostProgramsIndexer {
         });
 
         if (!fetchedTx) {
-          console.warn(`⚠️  트랜잭션을 찾을 수 없습니다: ${signature}`);
+          log.warn("Transaction not found", { signature });
           return;
         }
 
@@ -464,9 +481,10 @@ export class HostProgramsIndexer {
       // 각 이벤트 처리
       for (const event of events) {
         if (process.env.NODE_ENV === "development") {
-          console.log(`🔍 [DEBUG] 이벤트 처리:`, {
-            name: event.name,
-            dataKeys: Object.keys(event.data || {}),
+          log.debug("Processing event", {
+            event_name: event.name,
+            data_keys: Object.keys(event.data || {}),
+            signature,
           });
         }
 
@@ -481,11 +499,11 @@ export class HostProgramsIndexer {
         if (indexedEvent) {
           await this.dispatchEvent(indexedEvent);
         } else {
-          console.warn(`⚠️  이벤트 변환 실패: ${event.name}`);
+          log.warn("Event conversion failed", { event_name: event.name, signature });
         }
       }
     } catch (error) {
-      console.error(`❌ 로그 처리 중 오류 (${signature}):`, error);
+      log.error("Error processing logs", error, { signature });
       this.handleError(error as Error);
     }
   }
@@ -550,7 +568,7 @@ export class HostProgramsIndexer {
     caller: string
   ): IndexedEvent | null {
     if (!event || !event.data) {
-      console.warn("[WARN] Event data is missing");
+      log.warn("Event data is missing", { event_name: event?.name, signature });
       return null;
     }
 
@@ -600,7 +618,7 @@ export class HostProgramsIndexer {
         );
 
         if (handle.length === 0 || clientTag.length === 0) {
-          console.warn("[WARN] InputHandleRegistered event fields are empty");
+          log.warn("InputHandleRegistered event fields are empty", { signature });
           return null;
         }
 
@@ -624,7 +642,7 @@ export class HostProgramsIndexer {
         );
 
         if (inputHandle.length === 0 || resultHandle.length === 0) {
-          console.warn("[WARN] Fhe16UnaryOpRequested event fields are empty");
+          log.warn("Fhe16UnaryOpRequested event fields are empty", { signature });
           return null;
         }
 
@@ -652,7 +670,7 @@ export class HostProgramsIndexer {
         );
 
         if (lhsHandle.length === 0 || rhsHandle.length === 0 || resultHandle.length === 0) {
-          console.warn("[WARN] Fhe16BinaryOpRequested event fields are empty");
+          log.warn("Fhe16BinaryOpRequested event fields are empty", { signature });
           return null;
         }
 
@@ -689,7 +707,7 @@ export class HostProgramsIndexer {
           cHandle.length === 0 ||
           resultHandle.length === 0
         ) {
-          console.warn("[WARN] Fhe16TernaryOpRequested event fields are empty");
+          log.warn("Fhe16TernaryOpRequested event fields are empty", { signature });
           return null;
         }
 
@@ -705,13 +723,21 @@ export class HostProgramsIndexer {
       }
 
       default:
-        console.warn(`[WARN] Unknown event type: ${event.name} (normalized: ${normalizedName})`);
+        log.warn("Unknown event type", { 
+          event_name: event.name,
+          normalized_name: normalizedName,
+          signature,
+        });
         return null;
     }
   }
 
   private async dispatchEvent(event: IndexedEvent): Promise<void> {
-    console.log(`[INFO] Event received: ${event.type} (slot: ${event.slot}, signature: ${event.signature})`);
+    log.info("Event received", {
+      event_type: event.type,
+      slot: event.slot,
+      signature: event.signature,
+    });
 
     try {
       switch (event.type) {
@@ -734,13 +760,15 @@ export class HostProgramsIndexer {
   }
 
   private handleError(error: Error): void {
-    console.error(`[ERROR] Indexer error: ${error.message}`);
+    log.error("Indexer error", error);
     this.handlers.onError?.(error);
   }
 
   private async attemptReconnect(): Promise<void> {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error("[ERROR] Maximum reconnection attempts exceeded, switching to polling mode");
+      log.error("Maximum reconnection attempts exceeded, switching to polling mode", undefined, {
+        max_attempts: this.maxReconnectAttempts,
+      });
       await this.startPolling();
       return;
     }
@@ -748,9 +776,11 @@ export class HostProgramsIndexer {
     this.reconnectAttempts++;
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
 
-    console.log(
-      `[INFO] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
-    );
+    log.info("Reconnecting", {
+      delay_ms: delay,
+      attempt: this.reconnectAttempts,
+      max_attempts: this.maxReconnectAttempts,
+    });
 
     setTimeout(async () => {
       this.handlers.onReconnect?.();
@@ -762,15 +792,15 @@ export class HostProgramsIndexer {
    * 인덱서 중지
    */
   public async stop(): Promise<void> {
-    console.log("[INFO] Stopping indexer...");
+    log.info("Stopping indexer");
 
     if (this.subscriptionId !== null) {
       try {
         await this.connection.removeOnLogsListener(this.subscriptionId);
         this.subscriptionId = null;
-        console.log("[INFO] WebSocket subscription removed");
+        log.info("WebSocket subscription removed");
       } catch (error) {
-        console.error("[ERROR] Failed to remove WebSocket subscription:", error);
+        log.error("Failed to remove WebSocket subscription", error);
       }
     }
 
@@ -778,12 +808,12 @@ export class HostProgramsIndexer {
       clearInterval(this.pollIntervalId);
       this.pollIntervalId = null;
       this.isPolling = false;
-      console.log("[INFO] Polling stopped");
+      log.info("Polling stopped");
     }
 
     this.isRunning = false;
     this.currentMode = null;
-    console.log("[INFO] Indexer stopped");
+    log.info("Indexer stopped");
   }
 
   /**
