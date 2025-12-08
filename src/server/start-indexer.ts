@@ -10,6 +10,9 @@ import type {
   Fhe16TernaryOpRequestedEvent,
 } from "@/lib/indexer";
 import { createLogger } from "@/lib/logger";
+import { CiphertextStore } from "@/lib/store/ciphertext-store";
+import { OperationLogStore } from "@/lib/store/operation-log-store";
+import { IndexerStateStore } from "@/lib/store/indexer-state-store";
 
 const log = createLogger("IndexerStartup");
 
@@ -82,12 +85,28 @@ export async function startIndexerInNextJs(
         // 기본 핸들러 (handlers가 제공되지 않은 경우)
         const defaultHandlers = handlers || {
           onInputHandleRegistered: async (event: InputHandleRegisteredEvent) => {
+            // Handle을 hex string으로 변환 (number[] -> hex)
+            const handleHex = Buffer.from(event.handle).toString('hex');
+            
             log.info("InputHandleRegistered", {
               caller: event.caller,
               slot: event.slot,
               signature: event.signature,
+              handle: handleHex,
             });
-            // TODO: 여기에 DB 저장, 큐에 넣기 등의 로직 추가
+            
+            try {
+              // Redis -> PostgreSQL 영구 저장 확정
+              await CiphertextStore.confirm(handleHex);
+              
+              // 인덱서 상태 업데이트 (체크포인트)
+              await IndexerStateStore.updateState(programId, event.slot, event.signature);
+            } catch (error) {
+              log.error("Failed to confirm ciphertext and update state", error, {
+                handle: handleHex,
+                signature: event.signature,
+              });
+            }
           },
 
           onFhe16UnaryOpRequested: async (
@@ -99,7 +118,16 @@ export async function startIndexerInNextJs(
               slot: event.slot,
               signature: event.signature,
             });
-            // TODO: 여기에 FHE 연산 큐에 넣기 등의 로직 추가
+            
+            try {
+              // 연산 로그 저장
+              await OperationLogStore.saveUnary(event);
+              
+              // 인덱서 상태 업데이트
+              await IndexerStateStore.updateState(programId, event.slot, event.signature);
+            } catch (error) {
+              log.error("Failed to save unary operation log", error);
+            }
           },
 
           onFhe16BinaryOpRequested: async (
@@ -111,7 +139,16 @@ export async function startIndexerInNextJs(
               slot: event.slot,
               signature: event.signature,
             });
-            // TODO: 여기에 FHE 연산 큐에 넣기 등의 로직 추가
+            
+            try {
+              // 연산 로그 저장
+              await OperationLogStore.saveBinary(event);
+              
+              // 인덱서 상태 업데이트
+              await IndexerStateStore.updateState(programId, event.slot, event.signature);
+            } catch (error) {
+              log.error("Failed to save binary operation log", error);
+            }
           },
 
           onFhe16TernaryOpRequested: async (
@@ -123,7 +160,16 @@ export async function startIndexerInNextJs(
               slot: event.slot,
               signature: event.signature,
             });
-            // TODO: 여기에 FHE 연산 큐에 넣기 등의 로직 추가
+            
+            try {
+              // 연산 로그 저장
+              await OperationLogStore.saveTernary(event);
+              
+              // 인덱서 상태 업데이트
+              await IndexerStateStore.updateState(programId, event.slot, event.signature);
+            } catch (error) {
+              log.error("Failed to save ternary operation log", error);
+            }
           },
 
           onError: (error: Error) => {
@@ -136,8 +182,19 @@ export async function startIndexerInNextJs(
           },
         };
 
+        // DB에서 마지막 처리 슬롯 가져오기 (복구 기능)
+        const lastProcessedSlot = await IndexerStateStore.getLastSlot(programId);
+        const lastProcessedSignature = await IndexerStateStore.getLastSignature(programId);
+        
+        if (lastProcessedSlot > 0) {
+          log.info("Resuming from previous state", {
+            slot: lastProcessedSlot,
+            signature: lastProcessedSignature,
+          });
+        }
+
         // 싱글톤 인덱서 가져오기 (Polling 모드로 자동 시작)
-        await getIndexer(
+        const indexer = await getIndexer(
           {
             network,
             programId,
@@ -146,6 +203,11 @@ export async function startIndexerInNextJs(
           },
           defaultHandlers
         );
+
+        // 인덱서에 마지막 처리 슬롯 설정 (복구)
+        if (lastProcessedSlot > 0) {
+          indexer.setLastProcessedSlot(lastProcessedSlot, lastProcessedSignature);
+        }
 
         if (process.env.NODE_ENV === "production") {
           log.info("FHE indexer started (singleton)");

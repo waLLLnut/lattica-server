@@ -68,6 +68,19 @@ export class HostProgramsIndexer {
   }
 
   /**
+   * 마지막 처리된 슬롯 설정 (복구용)
+   * @param slot - 마지막 처리된 슬롯 번호
+   * @param signature - 마지막 처리된 트랜잭션 signature (선택적)
+   */
+  public setLastProcessedSlot(slot: number, signature?: string | null): void {
+    this.lastProcessedSlot = slot;
+    if (signature !== undefined) {
+      this.lastProcessedSignature = signature || null;
+    }
+    log.info('Last processed slot set', { slot, signature });
+  }
+
+  /**
    * 인덱서 시작 (실행 모드 선택)
    * @param mode - 'websocket' 또는 'polling'
    */

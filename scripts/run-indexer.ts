@@ -8,8 +8,7 @@
 // - Next.js 없이 인덱서만 실행하고 싶을 때
 // - PM2나 Docker로 별도 프로세스로 관리할 때
 //
-// 단순하고 견고한 인덱서 실행 스크립트
-// Polling 모드를 기본으로 사용하여 순서 보장
+// 하이브리드 스토어 (Redis + PostgreSQL) 연동 인덱서 워커
 
 // .env.local 파일 로드 (독립 실행 시 필요)
 import { config } from "dotenv";
@@ -23,6 +22,12 @@ import type {
   Fhe16BinaryOpRequestedEvent,
   Fhe16TernaryOpRequestedEvent,
 } from "@/lib/indexer";
+import { CiphertextStore } from "@/lib/store/ciphertext-store";
+import { OperationLogStore } from "@/lib/store/operation-log-store";
+import { IndexerStateStore } from "@/lib/store/indexer-state-store";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger('IndexerWorker');
 
 // Next.js 환경에서 실행되는지 체크 (import 이후에 실행)
 if (process.env.NEXT_PHASE || process.env.NEXT_RUNTIME) {
@@ -32,21 +37,28 @@ if (process.env.NEXT_PHASE || process.env.NEXT_RUNTIME) {
   process.exit(1);
 }
 
+// Buffer/Array -> Hex String 유틸리티
+const toHex = (data: number[] | Uint8Array): string => {
+  if (data instanceof Uint8Array) {
+    return Buffer.from(data).toString('hex');
+  }
+  return Buffer.from(data).toString('hex');
+};
+
 async function main() {
-  // 로컬 네트워크 기본값 사용
+  log.info('🚀 Starting Host Programs Indexer Worker...');
+
   const network = process.env.NEXT_PUBLIC_NETWORK as "localnet" | "devnet" | "mainnet-beta" | undefined;
   const programId = process.env.NEXT_PUBLIC_PROGRAM_ID;
   
   if (!network) {
-    console.error("[ERROR] NEXT_PUBLIC_NETWORK environment variable is required");
-    console.error("[ERROR] Valid values: localnet, devnet, mainnet-beta");
-    console.error("[ERROR] Please set it in your .env.local file");
+    log.error('NEXT_PUBLIC_NETWORK environment variable is required');
+    log.error('Valid values: localnet, devnet, mainnet-beta');
     process.exit(1);
   }
   
   if (!programId) {
-    console.error("[ERROR] NEXT_PUBLIC_PROGRAM_ID environment variable is required");
-    console.error("[ERROR] Please set it in your .env.local file");
+    log.error('NEXT_PUBLIC_PROGRAM_ID environment variable is required');
     process.exit(1);
   }
 
@@ -58,16 +70,27 @@ async function main() {
     ? "ws://127.0.0.1:8900"
     : undefined;
 
-  console.log("[INFO] Host Programs Indexer (standalone mode)");
-  console.log(`[INFO] Network: ${network}`);
-  if (network === "localnet") {
-    console.log(`[INFO] RPC Endpoint: ${rpcEndpoint}`);
-    console.log(`[INFO] WebSocket Endpoint: ${wsEndpoint}`);
-  }
-  console.log(`[INFO] Program ID: ${programId}`);
-  console.log(`[INFO] Mode: Polling (sequential order guaranteed)`);
+  log.info('Indexer configuration', {
+    network,
+    programId,
+    rpcEndpoint,
+    wsEndpoint,
+    mode: 'Polling (sequential order guaranteed)',
+  });
 
-  // 싱글톤 인덱서 가져오기 (Polling 모드로 자동 시작)
+  // 1. DB에서 마지막 처리 슬롯 가져오기 (Resume 기능)
+  const lastProcessedSlot = await IndexerStateStore.getLastSlot(programId);
+  const lastProcessedSignature = await IndexerStateStore.getLastSignature(programId);
+  
+  if (lastProcessedSlot > 0) {
+    log.info(`Resuming from slot: ${lastProcessedSlot}`, { 
+      lastSignature: lastProcessedSignature 
+    });
+  } else {
+    log.info('Starting from the beginning (no previous state found)');
+  }
+
+  // 싱글톤 인덱서 가져오기
   const indexer = await getIndexer(
     {
       network,
@@ -76,52 +99,114 @@ async function main() {
       wsEndpoint,
     },
     {
-    onInputHandleRegistered: async (event: InputHandleRegisteredEvent) => {
-      console.log(`[INFO] InputHandleRegistered: caller=${event.caller} slot=${event.slot} signature=${event.signature}`);
-    },
+      // --- [이벤트 A] 암호문 입력 등록 ---
+      onInputHandleRegistered: async (event: InputHandleRegisteredEvent) => {
+        const handleHex = toHex(event.handle);
+        log.info('InputHandleRegistered', { 
+          handle: handleHex,
+          caller: event.caller,
+          slot: event.slot,
+        });
+        
+        try {
+          // Redis -> Postgres 영구 저장 확정
+          await CiphertextStore.confirm(handleHex);
+          
+          // 상태 업데이트
+          await IndexerStateStore.updateState(programId, event.slot, event.signature);
+          
+          log.debug('Input handle confirmed and state updated', { handle: handleHex });
+        } catch (error) {
+          log.error('Failed to confirm input handle', error, { handle: handleHex });
+          // 에러가 발생해도 다음 이벤트 계속 처리
+        }
+      },
 
-    onFhe16UnaryOpRequested: async (event: Fhe16UnaryOpRequestedEvent) => {
-      console.log(`[INFO] Fhe16UnaryOpRequested: op=${event.op} caller=${event.caller} slot=${event.slot} signature=${event.signature}`);
-    },
+      // --- [이벤트 B] 단항 연산 요청 ---
+      onFhe16UnaryOpRequested: async (event: Fhe16UnaryOpRequestedEvent) => {
+        log.info('Fhe16UnaryOpRequested', { 
+          op: event.op,
+          caller: event.caller,
+          slot: event.slot,
+        });
+        
+        try {
+          await OperationLogStore.saveUnary(event);
+          await IndexerStateStore.updateState(programId, event.slot, event.signature);
+        } catch (error) {
+          log.error('Failed to save unary operation', error);
+        }
+      },
 
-    onFhe16BinaryOpRequested: async (event: Fhe16BinaryOpRequestedEvent) => {
-      console.log(`[INFO] Fhe16BinaryOpRequested: op=${event.op} caller=${event.caller} slot=${event.slot} signature=${event.signature}`);
-    },
+      // --- [이벤트 C] 이항 연산 요청 ---
+      onFhe16BinaryOpRequested: async (event: Fhe16BinaryOpRequestedEvent) => {
+        log.info('Fhe16BinaryOpRequested', { 
+          op: event.op,
+          caller: event.caller,
+          slot: event.slot,
+        });
+        
+        try {
+          await OperationLogStore.saveBinary(event);
+          await IndexerStateStore.updateState(programId, event.slot, event.signature);
+        } catch (error) {
+          log.error('Failed to save binary operation', error);
+        }
+      },
 
-    onFhe16TernaryOpRequested: async (event: Fhe16TernaryOpRequestedEvent) => {
-      console.log(`[INFO] Fhe16TernaryOpRequested: op=${event.op} caller=${event.caller} slot=${event.slot} signature=${event.signature}`);
-    },
+      // --- [이벤트 D] 삼항 연산 요청 ---
+      onFhe16TernaryOpRequested: async (event: Fhe16TernaryOpRequestedEvent) => {
+        log.info('Fhe16TernaryOpRequested', { 
+          op: event.op,
+          caller: event.caller,
+          slot: event.slot,
+        });
+        
+        try {
+          await OperationLogStore.saveTernary(event);
+          await IndexerStateStore.updateState(programId, event.slot, event.signature);
+        } catch (error) {
+          log.error('Failed to save ternary operation', error);
+        }
+      },
 
-    onError: (error: Error) => {
-      console.error(`[ERROR] Indexer error: ${error.message}`);
-    },
-
+      // --- 에러 및 재연결 핸들링 ---
+      onError: (error: Error) => {
+        log.error('Indexer fatal error', error);
+      },
+      
       onReconnect: () => {
-        console.log("[INFO] Reconnecting...");
+        log.warn('Indexer reconnecting...');
       },
     }
   );
 
-  console.log("[INFO] Indexer started (Polling mode)");
+  // 인덱서에 마지막 처리 슬롯 설정 (복구)
+  if (lastProcessedSlot > 0) {
+    indexer.setLastProcessedSlot(lastProcessedSlot, lastProcessedSignature);
+  }
+
+  log.info('✅ Indexer is running and listening for events.');
 
   // 통계 주기적으로 출력 (1분마다)
   setInterval(() => {
     const stats = indexer.getStats();
-    console.log("[STATS] Indexer statistics:");
-    console.log(`[STATS]   Program ID: ${stats.programId}`);
-    console.log(`[STATS]   Network: ${stats.network}`);
-    console.log(`[STATS]   Last Processed Slot: ${stats.lastProcessedSlot}`);
-    console.log(`[STATS]   Last Processed Signature: ${stats.lastProcessedSignature || "none"}`);
-    console.log(`[STATS]   Is Polling: ${stats.isPolling}`);
-    console.log(`[STATS]   Subscription ID: ${stats.subscriptionId}`);
-    console.log(`[STATS]   Reconnect Attempts: ${stats.reconnectAttempts}`);
-    console.log(`[STATS]   Current Mode: ${stats.currentMode || "none"}`);
-    console.log(`[STATS]   Is Running: ${stats.isRunning}`);
+    log.info('Indexer statistics', {
+      programId: stats.programId,
+      network: stats.network,
+      lastProcessedSlot: stats.lastProcessedSlot,
+      lastProcessedSignature: stats.lastProcessedSignature || 'none',
+      isPolling: stats.isPolling,
+      subscriptionId: stats.subscriptionId,
+      reconnectAttempts: stats.reconnectAttempts,
+      currentMode: stats.currentMode || 'none',
+      isRunning: stats.isRunning,
+    });
   }, 60000);
 
-  // 종료 처리
+  // 프로세스 종료 시그널 처리
   const shutdown = async () => {
-    console.log("[INFO] Shutting down indexer...");
+    log.info('Shutting down indexer...');
     await cleanupIndexer();
     process.exit(0);
   };
@@ -131,6 +216,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(`[ERROR] Failed to start indexer: ${error.message}`);
+  log.error('Worker failed to start', error);
   process.exit(1);
 });

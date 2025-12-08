@@ -1,0 +1,56 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. 암호문 저장소 (확정된 데이터)
+model Ciphertext {
+  handle      String   @id // 32 bytes Hex String (Primary Key)
+  data        String   // Base64 encoded ciphertext
+  owner       String   // Solana PublicKey (Base58)
+  clientTag   String?  // Optional client tag (Hex)
+  
+  status      String   @default("pending") // pending | confirmed
+  createdAt   DateTime @default(now())
+  confirmedAt DateTime?
+
+  // 빠른 조회를 위한 인덱스
+  @@index([owner])
+  @@index([status])
+}
+
+// 2. 연산 요청 로그 (블록체인 이벤트 기록용)
+model OperationLog {
+  signature     String   @id // Transaction Signature
+  slot          BigInt   // Block Slot number
+  blockTime     BigInt?  // Block Timestamp
+  caller        String   // Caller PublicKey
+  
+  type          String   // Unary | Binary | Ternary
+  operation     String   // AND, OR, ADD3 ... (Enum name)
+  
+  // 연산에 사용된 핸들들 (JSON 형태로 저장하거나, 별도 컬럼으로 분리 가능)
+  // 여기서는 검색 편의를 위해 주요 핸들만 컬럼으로 뺍니다.
+  inputHandles  String[] // [lhs, rhs] or [a, b, c]
+  resultHandle  String?  // 결과 핸들
+
+  createdAt     DateTime @default(now())
+
+  @@index([caller])
+  @@index([type])
+  @@index([slot])
+}
+
+// 3. 인덱서 상태 관리 (서버 재시작 시 복구용)
+model IndexerState {
+  programId     String   @id // 모니터링 중인 프로그램 ID
+  lastSlot      BigInt   @default(0)
+  lastSignature String?
+  updatedAt     DateTime @updatedAt
+}

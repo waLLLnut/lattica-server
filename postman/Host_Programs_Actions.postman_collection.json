@@ -7,6 +7,40 @@
 	},
 	"item": [
 		{
+			"name": "Upload Ciphertext",
+			"item": [
+				{
+					"name": "POST - Upload Ciphertext",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"handle\": \"0101010101010101010101010101010101010101010101010101010101010101\",\n  \"ciphertext\": \"SGVsbG8gV29ybGQ=\",\n  \"owner\": \"{{account}}\",\n  \"clientTag\": \"0202020202020202020202020202020202020202020202020202020202020202\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ciphertext",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ciphertext"]
+						},
+						"description": "Upload ciphertext data to Redis before registering on-chain. This must be called BEFORE register_input_handle transaction.\n\nRequired fields:\n- handle: 64-character hex string (32 bytes)\n- ciphertext: Base64-encoded ciphertext data\n- owner: Solana PublicKey (base58)\n- clientTag: Optional client tag (hex string)"
+					},
+					"response": []
+				}
+			],
+			"description": "Upload ciphertext data to Redis (Pre-register step). Must be called before register_input_handle transaction."
+		},
+		{
 			"name": "Register Input Handle",
 			"item": [
 				{
