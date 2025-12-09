@@ -24,8 +24,9 @@ redis.on('close', () => {
   log.info('Redis connection closed');
 });
 
-const TTL_PENDING = 3600; // 1시간 (트랜잭션 대기)
-const TTL_CACHE = 600;    // 10분 (확정 후 조회 캐싱)
+// TTL 설정 (환경 변수에서 읽기, 기본값 제공)
+const TTL_PENDING = parseInt(process.env.REDIS_TTL_PENDING || '180', 10); // 3분 (트랜잭션 대기)
+const TTL_CACHE = parseInt(process.env.REDIS_TTL_CACHE || '600', 10);     // 10분 (확정 후 조회 캐싱)
 
 export const CiphertextStore = {
   /**
