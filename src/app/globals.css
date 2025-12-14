@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import '@wallet-ui/tailwind/index.css';
+@import '@dialectlabs/blinks/index.css';
 
 @custom-variant dark (&:is(.dark *));
 

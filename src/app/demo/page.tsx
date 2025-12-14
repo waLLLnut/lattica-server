@@ -9,33 +9,31 @@ import { useDemoLogic } from '@/hooks/use-demo-logic';
 import { WalletDropdown } from '@/components/wallet-dropdown';
 
 function DemoContent() {
-  const logic = useDemoLogic(); // 모든 상태와 로직을 여기서 가져옴
+  const logic = useDemoLogic();
 
   return (
-    <div className="max-w-6xl mx-auto p-5 font-mono bg-[#0a0a0a] text-[#0f0] min-h-screen">
+    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px', fontFamily: 'monospace', color: '#0f0', background: '#0a0a0a', minHeight: '100vh' }}>
       
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl m-0 font-bold">LatticA FHE Demo</h1>
-        <div className="flex items-center gap-4">
-          {/* Status Indicators */}
-          <div className="text-xs text-[#666]">
-            WASM: <span className={logic.moduleReady ? "text-[#0f0]" : "text-yellow-500"}>
-              {logic.moduleReady ? "Ready" : "Loading"}
-            </span>
-          </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px' }}>
+        <h1 style={{ margin: 0, fontWeight: 'bold' }}>LatticA FHE Demo</h1>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+           <div style={{ fontSize: '12px', color: '#666' }}>
+             WASM: <span style={{ color: logic.moduleReady ? '#0f0' : '#ebbc26' }}>{logic.moduleReady ? "Ready" : "Loading"}</span>
+           </div>
+          <WalletDropdown />
         </div>
       </div>
 
-      {/* Dashboard: Confidential Variables */}
-      <StepCard title="Confidential Variables" isActive={true} isCompleted={!!logic.solCid}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Dashboard */}
+      <StepCard title="Confidential Variables" isActive={true} isCompleted={!!logic.solHandle}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
           <ConfidentialVariableCard 
             label="(1) SOL Balance" 
             value={logic.confidentialSOL} 
             state={logic.solBalanceState} 
             ciphertext={logic.ciphertexts.sol} 
-            cid={logic.solCid} 
+            cid={logic.solHandle} 
             color="#3b82f6" 
           />
           <ConfidentialVariableCard 
@@ -43,34 +41,35 @@ function DemoContent() {
             value={logic.confidentialUSDC} 
             state={logic.usdcBalanceState} 
             ciphertext={logic.ciphertexts.usdc} 
-            cid={logic.usdcCid} 
+            cid={logic.usdcHandle} 
             color="#f59e0b" 
           />
+          {/* Input Preview Card */}
           {logic.ciphertexts[logic.operation] && (
-            <ConfidentialVariableCard 
-              label={`(2) ${logic.operation.charAt(0).toUpperCase() + logic.operation.slice(1)} Amount`} 
-              value={logic.amounts[logic.operation]} 
-              state="encrypted" 
-              ciphertext={logic.ciphertexts[logic.operation]} 
-              color="#10b981" 
-            />
+             <ConfidentialVariableCard
+                label={`(2) ${logic.operation.toUpperCase()} Amount`}
+                value={logic.amounts[logic.operation]}
+                state="encrypted"
+                ciphertext={logic.ciphertexts[logic.operation]}
+                color="#10b981"
+             />
           )}
         </div>
       </StepCard>
 
-      {/* Step 1: Prepare */}
+      {/* Step 1 */}
       <StepCard 
-        title="Step 1: Prepare Transaction" 
-        description="Select operation and encrypt inputs locally." 
+        title="Step 1: Prepare" 
+        description="Select operation & Encrypt inputs locally." 
         isActive={logic.moduleReady}
         isCompleted={!!logic.ciphertexts[logic.operation]}
       >
-        <div className="mb-4">
-          <label className="font-bold mr-2">Operation:</label>
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ fontWeight: 'bold' }}>Operation: </label>
           <select 
             value={logic.operation} 
             onChange={(e) => logic.setOperation(e.target.value as 'deposit' | 'withdraw' | 'borrow')}
-            className="bg-black text-[#0f0] border border-[#0f0] p-2 rounded cursor-pointer"
+            style={{ background: '#000', color: '#0f0', border: '1px solid #0f0', padding: '5px', marginLeft: '10px' }}
           >
             <option value="deposit">Deposit</option>
             <option value="withdraw">Withdraw</option>
@@ -80,99 +79,71 @@ function DemoContent() {
 
         <ExecutionPlan operation={logic.operation} />
 
-        <div className="flex gap-4 items-center mt-4 flex-wrap">
-          <div>
-            <label className="font-bold block text-xs mb-1 text-[#888]">Amount</label>
-            <input 
-              type="number" 
-              value={logic.amounts[logic.operation]} 
-              onChange={(e) => logic.setAmounts(prev => ({ ...prev, [logic.operation]: e.target.value }))}
-              className="bg-black text-white border border-[#555] p-2 w-32 rounded"
-            />
-          </div>
-          <button 
-            onClick={logic.handleEncrypt} 
-            disabled={!logic.moduleReady}
-            className="px-6 py-2 bg-[#0f0] text-black font-bold rounded hover:bg-[#00cc00] self-end disabled:bg-[#555] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Encrypt Input
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '15px' }}>
+          <input 
+            type="number" 
+            value={logic.amounts[logic.operation]} 
+            onChange={(e) => logic.setAmounts(prev => ({ ...prev, [logic.operation]: e.target.value }))}
+            style={{ background: '#000', color: '#fff', border: '1px solid #555', padding: '8px', width: '150px' }}
+          />
+          <button onClick={logic.handleEncrypt} style={{ background: '#0f0', color: '#000', border: 'none', padding: '8px 20px', cursor: 'pointer', fontWeight: 'bold' }}>
+            Encrypt
           </button>
         </div>
-        
-        {/* Ciphertext Preview */}
-        {logic.ciphertexts[logic.operation] && (
-           <div className="mt-4 p-3 bg-[#1a3a1a] border border-[#0f0] rounded text-xs text-[#0f0]">
-             ✓ Input Encrypted ({logic.ciphertexts[logic.operation]?.encrypted_data.length} ints)
-           </div>
-        )}
       </StepCard>
 
-      {/* Step 2: Register */}
+      {/* Step 2 */}
       <StepCard 
-        title="Step 2: Register CIDs" 
-        description="Submit encrypted data to Solana blockchain."
+        title="Step 2: Register" 
         isActive={!!logic.ciphertexts[logic.operation]} 
         isCompleted={!!logic.regTxSig}
       >
-        <p className="text-sm text-[#888] mb-3">Register encrypted input handle on-chain via Solana Actions API.</p>
         <button 
-          onClick={logic.handleRegisterCIDs} 
-          disabled={!logic.publicKey || !logic.ciphertexts[logic.operation]}
-          className="px-6 py-3 bg-[#0f0] text-black font-bold rounded disabled:bg-[#555] disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={logic.handleRegister} 
+          disabled={logic.isRegistering || !logic.publicKey || !logic.ciphertexts[logic.operation]}
+          style={{ 
+            padding: '10px 20px', 
+            background: logic.isRegistering ? '#555' : '#0f0', 
+            color: '#000', 
+            border: 'none', 
+            cursor: logic.isRegistering ? 'wait' : 'pointer', 
+            fontWeight: 'bold',
+            opacity: logic.isRegistering ? 0.6 : 1
+          }}
         >
-          Register via Solana Actions
+          {logic.isRegistering ? 'Registering...' : 'Register On-Chain'}
         </button>
-        {logic.regTxSig && (
-          <div className="mt-3 p-2 bg-[#1a3a1a] border border-[#0f0] rounded text-xs break-all font-mono">
-            Tx: {logic.regTxSig}
-          </div>
-        )}
+        {logic.regTxSig && <div style={{ marginTop: '10px', fontSize: '12px', wordBreak: 'break-all' }}>Tx: {logic.regTxSig}</div>}
       </StepCard>
 
-      {/* Step 3: Submit Job */}
+      {/* Step 3 */}
       <StepCard 
-        title="Step 3: Submit Job" 
-        description="Request FHE computation on encrypted CIDs."
+        title="Step 3: Request Op" 
         isActive={!!logic.regTxSig} 
-        isCompleted={!!logic.jobTxSig}
+        isCompleted={!!logic.opTxSig}
       >
-        <p className="text-sm text-[#888] mb-3">Submit computation job to FHE executor with registered CIDs.</p>
-        <button 
-          onClick={logic.handleSubmitJob} 
-          disabled={!logic.regTxSig}
-          className="px-6 py-3 bg-[#0f0] text-black font-bold rounded disabled:bg-[#555] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Submit to FHE Executor
+        <button onClick={logic.handleSubmitJob} style={{ padding: '10px 20px', background: '#0f0', color: '#000', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+          Submit Operation Request
         </button>
-        {logic.jobTxSig && (
-          <div className="mt-3 p-2 bg-[#1a3a1a] border border-[#0f0] rounded text-xs font-mono">
-            <div>Tx: {logic.jobTxSig}</div>
-            <div className="mt-1 text-[#0f0]">Job PDA: {logic.jobPda}</div>
-          </div>
-        )}
-        {logic.resultCid && (
-          <div className="mt-3 p-2 bg-[#1a3a1a] border border-[#ff0] rounded text-xs text-[#ff0] font-mono">
-            Result CID: {logic.resultCid}
-          </div>
+        {logic.opTxSig && (
+            <div style={{ marginTop: '10px', fontSize: '12px', wordBreak: 'break-all' }}>
+                <div>Tx: {logic.opTxSig}</div>
+                {logic.resultHandle && <div style={{ color: '#0f0', marginTop: '5px' }}>Result Handle: {logic.resultHandle}</div>}
+            </div>
         )}
       </StepCard>
 
-      {/* Step 4: Decrypt */}
+      {/* Step 4 */}
       <StepCard 
-        title="Step 4: Decrypt Result" 
-        description="Decrypt and display the computation result."
-        isActive={!!logic.resultCid} 
+        title="Step 4: Decrypt" 
+        isActive={!!logic.resultHandle} 
         isCompleted={!!logic.decryptedResult}
       >
-        <button 
-          onClick={logic.handleDecrypt} 
-          disabled={!logic.resultCid}
-          className="px-6 py-3 bg-[#ff0] text-black font-bold rounded disabled:bg-[#555] disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <button onClick={logic.handleDecrypt} style={{ padding: '10px 20px', background: '#ff0', color: '#000', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
           Decrypt Result
         </button>
         {logic.decryptedResult && (
-          <div className="mt-4 p-4 border-2 border-[#ff0] text-[#ff0] font-bold text-xl rounded bg-[#3a3a1a]">
+          <div style={{ marginTop: '15px', padding: '10px', border: '2px solid #ff0', color: '#ff0', fontSize: '20px', fontWeight: 'bold', background: '#3a3a1a' }}>
             Result: {logic.decryptedResult}
           </div>
         )}
