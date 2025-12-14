@@ -10,6 +10,7 @@ import {
   TransactionInstruction,
   Connection,
 } from '@solana/web3.js'
+import { ACTIONS_CORS_HEADERS, BLOCKCHAIN_IDS, ActionGetResponse, ActionPostRequest, ActionPostResponse } from '@solana/actions'
 import { createLogger } from '@/lib/logger'
 import { buildRequestTernaryOpData, Fhe16TernaryOp, validatePublicKey } from '@/lib/host-programs-utils'
 
@@ -17,21 +18,34 @@ const log = createLogger('API:RequestTernaryOp')
 const connection = new Connection('https://api.devnet.solana.com', 'confirmed')
 const PROGRAM_ID = new PublicKey('FkLGYGk2bypUXgpGmcsCTmKZo6LCjHaXswbhY1LNGAKj')
 
+// CAIP-2 format for Solana
+const blockchain = BLOCKCHAIN_IDS.devnet
+
+// Set standardized headers for Blink Providers
+const headers = {
+  ...ACTIONS_CORS_HEADERS,
+  'x-blockchain-ids': blockchain,
+  'x-action-version': '2.4',
+}
+
 function cors(res: NextResponse) {
-  res.headers.set('Access-Control-Allow-Origin', '*')
-  res.headers.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-  res.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  Object.entries(headers).forEach(([key, value]) => {
+    res.headers.set(key, value)
+  })
   return res
 }
 
 export async function OPTIONS() {
-  return cors(new NextResponse(null, { status: 200 }))
+  return new NextResponse(null, {
+    status: 200,
+    headers,
+  })
 }
 
 export async function GET(req: NextRequest) {
   const baseURL = new URL(req.url).origin
 
-  return cors(NextResponse.json({
+  const response: ActionGetResponse = {
     type: 'action',
     icon: new URL('/logo.png', baseURL).toString(),
     title: 'Host Programs · Request Ternary Operation',
@@ -39,6 +53,7 @@ export async function GET(req: NextRequest) {
     label: 'Request Ternary Op',
     links: {
       actions: [{
+        type: 'transaction',
         href: `${baseURL}/api/actions/request_ternary_op?op={op}&a_handle={a_handle}&b_handle={b_handle}&c_handle={c_handle}`,
         label: 'Request Ternary Operation',
         parameters: [
@@ -78,17 +93,19 @@ export async function GET(req: NextRequest) {
       handle_format: 'Handles must be 32 bytes, provided as hex strings',
       program_id: PROGRAM_ID.toBase58(),
     }
-  }))
+  }
+
+  return cors(NextResponse.json(response))
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const rawBody = await req.json()
+    const request: ActionPostRequest = await req.json()
     const url = new URL(req.url)
-    const account = rawBody.account
+    const account = request.account
 
     // Get parameters from query params or body
-    const bodyData = rawBody.data || rawBody
+    const bodyData = request.data || request
     const opStr = url.searchParams.get('op') || bodyData.op
     const aHandleStr = url.searchParams.get('a_handle') || bodyData.a_handle
     const bHandleStr = url.searchParams.get('b_handle') || bodyData.b_handle
@@ -194,14 +211,12 @@ export async function POST(req: NextRequest) {
       c_handle: cHandle.toString('hex').slice(0, 16) + '...',
     })
 
-    return cors(NextResponse.json({
+    const response: ActionPostResponse = {
+      type: 'transaction',
       transaction: Buffer.from(serializedTx).toString('base64'),
-      message: `Ternary operation (${opName}) transaction created successfully`,
-      op: opName,
-      a_handle: aHandle.toString('hex'),
-      b_handle: bHandle.toString('hex'),
-      c_handle: cHandle.toString('hex'),
-    }))
+    }
+
+    return cors(NextResponse.json(response))
   } catch (e: unknown) {
     log.error('Request ternary op error', e)
     return cors(NextResponse.json({

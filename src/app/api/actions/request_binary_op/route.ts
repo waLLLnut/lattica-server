@@ -10,6 +10,7 @@ import {
   TransactionInstruction,
   Connection,
 } from '@solana/web3.js'
+import { ACTIONS_CORS_HEADERS, BLOCKCHAIN_IDS, ActionGetResponse, ActionPostRequest, ActionPostResponse } from '@solana/actions'
 import { createLogger } from '@/lib/logger'
 import { buildRequestBinaryOpData, Fhe16BinaryOp, validatePublicKey } from '@/lib/host-programs-utils'
 
@@ -17,29 +18,42 @@ const log = createLogger('API:RequestBinaryOp')
 const connection = new Connection('https://api.devnet.solana.com', 'confirmed')
 const PROGRAM_ID = new PublicKey('FkLGYGk2bypUXgpGmcsCTmKZo6LCjHaXswbhY1LNGAKj')
 
+// CAIP-2 format for Solana
+const blockchain = BLOCKCHAIN_IDS.devnet
+
+// Set standardized headers for Blink Providers
+const headers = {
+  ...ACTIONS_CORS_HEADERS,
+  'x-blockchain-ids': blockchain,
+  'x-action-version': '2.4',
+}
+
 function cors(res: NextResponse) {
-  res.headers.set('Access-Control-Allow-Origin', '*')
-  res.headers.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-  res.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  Object.entries(headers).forEach(([key, value]) => {
+    res.headers.set(key, value)
+  })
   return res
 }
 
 export async function OPTIONS() {
-  return cors(new NextResponse(null, { status: 200 }))
+  return new NextResponse(null, {
+    status: 200,
+    headers,
+  })
 }
 
 export async function GET(req: NextRequest) {
   const baseURL = new URL(req.url).origin
 
   const binaryOps = Object.entries(Fhe16BinaryOp)
-    .filter(([_, value]) => typeof value === 'number')
+    .filter(([, value]) => typeof value === 'number')
     .map(([name, value]) => ({
       label: name,
       value: value.toString(),
       selected: name === 'Add',
     }))
 
-  return cors(NextResponse.json({
+  const response: ActionGetResponse = {
     type: 'action',
     icon: new URL('/logo.png', baseURL).toString(),
     title: 'Host Programs · Request Binary Operation',
@@ -47,6 +61,7 @@ export async function GET(req: NextRequest) {
     label: 'Request Binary Op',
     links: {
       actions: [{
+        type: 'transaction',
         href: `${baseURL}/api/actions/request_binary_op?op={op}&lhs_handle={lhs_handle}&rhs_handle={rhs_handle}`,
         label: 'Request Binary Operation',
         parameters: [
@@ -75,17 +90,19 @@ export async function GET(req: NextRequest) {
       handle_format: 'Handles must be 32 bytes, provided as hex strings',
       program_id: PROGRAM_ID.toBase58(),
     }
-  }))
+  }
+
+  return cors(NextResponse.json(response))
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const rawBody = await req.json()
+    const request: ActionPostRequest = await req.json()
     const url = new URL(req.url)
-    const account = rawBody.account
+    const account = request.account
 
     // Get parameters from query params or body
-    const bodyData = rawBody.data || rawBody
+    const bodyData = request.data || request
     const opStr = url.searchParams.get('op') || bodyData.op
     const lhsHandleStr = url.searchParams.get('lhs_handle') || bodyData.lhs_handle
     const rhsHandleStr = url.searchParams.get('rhs_handle') || bodyData.rhs_handle
@@ -178,13 +195,12 @@ export async function POST(req: NextRequest) {
       rhs_handle: rhsHandle.toString('hex').slice(0, 16) + '...',
     })
 
-    return cors(NextResponse.json({
+    const response: ActionPostResponse = {
+      type: 'transaction',
       transaction: Buffer.from(serializedTx).toString('base64'),
-      message: `Binary operation (${opName}) transaction created successfully`,
-      op: opName,
-      lhs_handle: lhsHandle.toString('hex'),
-      rhs_handle: rhsHandle.toString('hex'),
-    }))
+    }
+
+    return cors(NextResponse.json(response))
   } catch (e: unknown) {
     log.error('Request binary op error', e)
     return cors(NextResponse.json({

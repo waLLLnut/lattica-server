@@ -10,6 +10,7 @@ import {
   TransactionInstruction,
   Connection,
 } from '@solana/web3.js'
+import { ACTIONS_CORS_HEADERS, BLOCKCHAIN_IDS, ActionGetResponse, ActionPostRequest, ActionPostResponse } from '@solana/actions'
 import { createLogger } from '@/lib/logger'
 import { buildRegisterInputHandleData, validatePublicKey } from '@/lib/host-programs-utils'
 
@@ -17,21 +18,34 @@ const log = createLogger('API:RegisterInputHandle')
 const connection = new Connection('https://api.devnet.solana.com', 'confirmed')
 const PROGRAM_ID = new PublicKey('FkLGYGk2bypUXgpGmcsCTmKZo6LCjHaXswbhY1LNGAKj')
 
+// CAIP-2 format for Solana
+const blockchain = BLOCKCHAIN_IDS.devnet
+
+// Set standardized headers for Blink Providers
+const headers = {
+  ...ACTIONS_CORS_HEADERS,
+  'x-blockchain-ids': blockchain,
+  'x-action-version': '2.4',
+}
+
 function cors(res: NextResponse) {
-  res.headers.set('Access-Control-Allow-Origin', '*')
-  res.headers.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-  res.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  Object.entries(headers).forEach(([key, value]) => {
+    res.headers.set(key, value)
+  })
   return res
 }
 
 export async function OPTIONS() {
-  return cors(new NextResponse(null, { status: 200 }))
+  return new NextResponse(null, {
+    status: 200,
+    headers,
+  })
 }
 
 export async function GET(req: NextRequest) {
   const baseURL = new URL(req.url).origin
 
-  return cors(NextResponse.json({
+  const response: ActionGetResponse = {
     type: 'action',
     icon: new URL('/logo.png', baseURL).toString(),
     title: 'Host Programs · Register Input Handle',
@@ -39,6 +53,7 @@ export async function GET(req: NextRequest) {
     label: 'Register Input Handle',
     links: {
       actions: [{
+        type: 'transaction',
         href: `${baseURL}/api/actions/register_input_handle?handle={handle}&client_tag={client_tag}`,
         label: 'Register Input Handle',
         parameters: [
@@ -60,17 +75,19 @@ export async function GET(req: NextRequest) {
       client_tag_format: 'Client tag must be 32 bytes, provided as hex string',
       program_id: PROGRAM_ID.toBase58(),
     }
-  }))
+  }
+
+  return cors(NextResponse.json(response))
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const rawBody = await req.json()
+    const request: ActionPostRequest = await req.json()
     const url = new URL(req.url)
-    const account = rawBody.account
+    const account = request.account
 
     // Get parameters from query params or body
-    const bodyData = rawBody.data || rawBody
+    const bodyData = request.data || request
     const handleStr = url.searchParams.get('handle') || bodyData.handle
     const clientTagStr = url.searchParams.get('client_tag') || bodyData.client_tag
 
@@ -157,12 +174,12 @@ export async function POST(req: NextRequest) {
       client_tag: clientTag.toString('hex').slice(0, 16) + '...',
     })
 
-    return cors(NextResponse.json({
+    const response: ActionPostResponse = {
+      type: 'transaction',
       transaction: Buffer.from(serializedTx).toString('base64'),
-      message: 'Register input handle transaction created successfully',
-      handle: handle.toString('hex'),
-      client_tag: clientTag.toString('hex'),
-    }))
+    }
+
+    return cors(NextResponse.json(response))
   } catch (e: unknown) {
     log.error('Register input handle error', e)
     return cors(NextResponse.json({

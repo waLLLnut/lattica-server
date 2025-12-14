@@ -10,6 +10,7 @@ import {
   TransactionInstruction,
   Connection,
 } from '@solana/web3.js'
+import { ACTIONS_CORS_HEADERS, BLOCKCHAIN_IDS, ActionGetResponse, ActionPostRequest, ActionPostResponse } from '@solana/actions'
 import { createLogger } from '@/lib/logger'
 import { buildRequestUnaryOpData, Fhe16UnaryOp, validatePublicKey } from '@/lib/host-programs-utils'
 
@@ -17,21 +18,34 @@ const log = createLogger('API:RequestUnaryOp')
 const connection = new Connection('https://api.devnet.solana.com', 'confirmed')
 const PROGRAM_ID = new PublicKey('FkLGYGk2bypUXgpGmcsCTmKZo6LCjHaXswbhY1LNGAKj')
 
+// CAIP-2 format for Solana
+const blockchain = BLOCKCHAIN_IDS.devnet
+
+// Set standardized headers for Blink Providers
+const headers = {
+  ...ACTIONS_CORS_HEADERS,
+  'x-blockchain-ids': blockchain,
+  'x-action-version': '2.4',
+}
+
 function cors(res: NextResponse) {
-  res.headers.set('Access-Control-Allow-Origin', '*')
-  res.headers.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-  res.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  Object.entries(headers).forEach(([key, value]) => {
+    res.headers.set(key, value)
+  })
   return res
 }
 
 export async function OPTIONS() {
-  return cors(new NextResponse(null, { status: 200 }))
+  return new NextResponse(null, {
+    status: 200,
+    headers,
+  })
 }
 
 export async function GET(req: NextRequest) {
   const baseURL = new URL(req.url).origin
 
-  return cors(NextResponse.json({
+  const response: ActionGetResponse = {
     type: 'action',
     icon: new URL('/logo.png', baseURL).toString(),
     title: 'Host Programs · Request Unary Operation',
@@ -39,6 +53,7 @@ export async function GET(req: NextRequest) {
     label: 'Request Unary Op',
     links: {
       actions: [{
+        type: 'transaction',
         href: `${baseURL}/api/actions/request_unary_op?op={op}&input_handle={input_handle}`,
         label: 'Request Unary Operation',
         parameters: [
@@ -66,17 +81,19 @@ export async function GET(req: NextRequest) {
       handle_format: 'Input handle must be 32 bytes, provided as hex string',
       program_id: PROGRAM_ID.toBase58(),
     }
-  }))
+  }
+
+  return cors(NextResponse.json(response))
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const rawBody = await req.json()
+    const request: ActionPostRequest = await req.json()
     const url = new URL(req.url)
-    const account = rawBody.account
+    const account = request.account
 
     // Get parameters from query params or body
-    const bodyData = rawBody.data || rawBody
+    const bodyData = request.data || request
     const opStr = url.searchParams.get('op') || bodyData.op
     const inputHandleStr = url.searchParams.get('input_handle') || bodyData.input_handle
 
@@ -155,12 +172,12 @@ export async function POST(req: NextRequest) {
       input_handle: inputHandle.toString('hex').slice(0, 16) + '...',
     })
 
-    return cors(NextResponse.json({
+    const response: ActionPostResponse = {
+      type: 'transaction',
       transaction: Buffer.from(serializedTx).toString('base64'),
-      message: `Unary operation (${opName}) transaction created successfully`,
-      op: opName,
-      input_handle: inputHandle.toString('hex'),
-    }))
+    }
+
+    return cors(NextResponse.json(response))
   } catch (e: unknown) {
     log.error('Request unary op error', e)
     return cors(NextResponse.json({

@@ -34,6 +34,7 @@
   "private": true,
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
+    "@dialectlabs/blinks": "^0.22.5",
     "@prisma/client": "^6.19.0",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.15",
