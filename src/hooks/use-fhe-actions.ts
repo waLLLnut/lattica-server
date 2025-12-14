@@ -2,12 +2,11 @@ import { useState, useCallback } from 'react'
 import { useSolana } from '@/components/solana/use-solana'
 import { useFHE } from '@/components/fhe/fhe-provider'
 import { Fhe16BinaryOp, Fhe16UnaryOp, Fhe16TernaryOp } from '@/types/fhe'
-// gill 라이브러리 활용 (이전 컨텍스트 기반)
-import { getBase58Decoder } from 'gill'
+import { signAndSendBase64Transaction } from '@/lib/solana-signer'
 
 export function useFheActions() {
   // useSolana()는 walletUi 객체를 포함하므로 wallet 접근 가능
-  const { account, wallet } = useSolana()
+  const { account, wallet, cluster } = useSolana()
   const { addLog } = useFHE()
   const [loading, setLoading] = useState(false)
 
@@ -17,39 +16,18 @@ export function useFheActions() {
       throw new Error('Wallet not connected')
     }
 
-    // 1. Feature 확인
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const features = wallet.features as any
-    const feature = features?.['solana:signAndSendTransaction'] as
-      | {
-          signAndSendTransaction: (params: {
-            account: typeof account
-            chain: string
-            transaction: Uint8Array
-          }) => Promise<[{ signature: Uint8Array }]>
-        }
-      | undefined
-    if (!feature) {
-      throw new Error('Wallet does not support signAndSendTransaction')
+    addLog('Requesting wallet signature...', 'debug', logPrefix)
+    
+    const result = await signAndSendBase64Transaction(base64Tx, wallet, cluster.id)
+    
+    if ('error' in result) {
+      throw new Error(result.error)
     }
 
-    // 2. Base64 -> Uint8Array 변환 (Browser Native)
-    const transactionBytes = Uint8Array.from(atob(base64Tx), (c) => c.charCodeAt(0))
-
-    // 3. 지갑에 서명 요청
-    addLog('Requesting wallet signature...', 'debug', logPrefix)
-    const [output] = await feature.signAndSendTransaction({
-      account,
-      chain: 'solana:devnet', // 서버 환경에 맞춤
-      transaction: transactionBytes,
-    })
-
-    // 4. 서명(Signature) 디코딩
-    const signature = getBase58Decoder().decode(output.signature)
-    addLog(`Transaction sent: ${signature.slice(0, 8)}...`, 'info', logPrefix)
+    addLog(`Transaction sent: ${result.signature.slice(0, 8)}...`, 'info', logPrefix)
     
-    return signature
-  }, [wallet, account, addLog])
+    return result.signature
+  }, [wallet, account, cluster.id, addLog])
 
   // --- 1. Register Input Handle ---
   const registerInputHandle = async (handle: string, encryptedData: number[]) => {
@@ -171,7 +149,7 @@ export function useFheActions() {
   ) => {
     if (!account?.address) {
       addLog('Wallet not connected', 'warn', 'TernaryOp')
-      return
+      return null
     }
 
     setLoading(true)
@@ -191,14 +169,16 @@ export function useFheActions() {
         throw new Error(errorData.message || 'Failed to create transaction')
       }
 
-      // Transaction 응답은 나중에 서명 시 사용 예정 (TODO: 구현 필요)
-      await res.json()
-
-      addLog('Transaction signing not implemented - need wallet adapter integration', 'warn', 'TernaryOp')
-      addLog(`Ternary operation requested | Op: ${op}`, 'info', 'TernaryOp')
+      const data = await res.json()
+      
+      // Sign & Send
+      const signature = await signAndSendBase64Tx(data.transaction, 'TernaryOp')
+      addLog(`Ternary operation completed | Op: ${op}`, 'info', 'TernaryOp')
+      return signature
     } catch (e: unknown) {
       const errorMsg = e instanceof Error ? e.message : String(e)
       addLog(`Ternary operation failed | ${errorMsg}`, 'error', 'TernaryOp')
+      throw e
     } finally {
       setLoading(false)
     }

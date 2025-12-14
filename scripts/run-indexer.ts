@@ -22,6 +22,7 @@ import type {
   Fhe16BinaryOpRequestedEvent,
   Fhe16TernaryOpRequestedEvent,
 } from "@/lib/indexer";
+import { getDefaultRpcEndpoint, getDefaultWsEndpoint } from "@/lib/indexer/config";
 import { CiphertextStore } from "@/lib/store/ciphertext-store";
 import { OperationLogStore } from "@/lib/store/operation-log-store";
 import { IndexerStateStore } from "@/lib/store/indexer-state-store";
@@ -62,13 +63,9 @@ async function main() {
     process.exit(1);
   }
 
-  // 로컬 네트워크 엔드포인트
-  const rpcEndpoint = network === "localnet" 
-    ? "http://127.0.0.1:8899" 
-    : undefined;
-  const wsEndpoint = network === "localnet"
-    ? "ws://127.0.0.1:8900"
-    : undefined;
+  // 네트워크별 엔드포인트 설정 (localnet, devnet, mainnet-beta 모두 지원)
+  const rpcEndpoint = getDefaultRpcEndpoint(network);
+  const wsEndpoint = getDefaultWsEndpoint(network);
 
   log.info('Indexer configuration', {
     network,

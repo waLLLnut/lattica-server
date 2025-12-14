@@ -9,6 +9,7 @@ import type {
   Fhe16BinaryOpRequestedEvent,
   Fhe16TernaryOpRequestedEvent,
 } from "@/lib/indexer";
+import { getDefaultRpcEndpoint, getDefaultWsEndpoint } from "@/lib/indexer/config";
 import { createLogger } from "@/lib/logger";
 import { CiphertextStore } from "@/lib/store/ciphertext-store";
 import { OperationLogStore } from "@/lib/store/operation-log-store";
@@ -63,11 +64,9 @@ export async function startIndexerInNextJs(
           throw new Error("NEXT_PUBLIC_PROGRAM_ID environment variable is required");
         }
 
-        // 로컬 네트워크 엔드포인트
-        const rpcEndpoint =
-          network === "localnet" ? "http://127.0.0.1:8899" : undefined;
-        const wsEndpoint =
-          network === "localnet" ? "ws://127.0.0.1:8900" : undefined;
+        // 네트워크별 엔드포인트 설정 (localnet, devnet, mainnet-beta 모두 지원)
+        const rpcEndpoint = getDefaultRpcEndpoint(network);
+        const wsEndpoint = getDefaultWsEndpoint(network);
 
         // 프로덕션에서는 간소한 로그만
         if (process.env.NODE_ENV === "production") {
@@ -75,8 +74,8 @@ export async function startIndexerInNextJs(
         } else {
           log.info("Starting indexer in Next.js (singleton guaranteed)", {
             network,
-            rpc_endpoint: network === "localnet" ? rpcEndpoint : undefined,
-            ws_endpoint: network === "localnet" ? wsEndpoint : undefined,
+            rpc_endpoint: rpcEndpoint,
+            ws_endpoint: wsEndpoint,
             program_id: programId,
             mode: "Polling (sequential order guaranteed)",
           });
