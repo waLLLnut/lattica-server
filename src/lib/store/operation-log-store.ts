@@ -95,6 +95,68 @@ export const OperationLogStore = {
       throw e;
     }
   },
+
+  /**
+   * [Query] 특정 사용자의 연산 기록 조회
+   */
+  async getHistoryByCaller(
+    caller: string,
+    limit = 20,
+    offset = 0
+  ) {
+    try {
+      const logs = await prisma.operationLog.findMany({
+        where: { caller },
+        orderBy: { blockTime: 'desc' }, // 최신순
+        take: limit,
+        skip: offset,
+        select: {
+          signature: true,
+          type: true,
+          operation: true,
+          blockTime: true,
+          resultHandle: true,
+          inputHandles: true,
+          slot: true,
+          createdAt: true,
+        },
+      });
+
+      // BigInt를 number로 변환 (JSON 직렬화를 위해)
+      return logs.map((log) => ({
+        ...log,
+        slot: Number(log.slot),
+        blockTime: log.blockTime ? Number(log.blockTime) : null,
+      }));
+    } catch (e) {
+      log.error('Failed to fetch operation history', e);
+      throw e;
+    }
+  },
+
+  /**
+   * [Query] 특정 핸들이 결과로 생성된 연산 찾기 (Traceability)
+   */
+  async getOperationByResultHandle(handle: string) {
+    try {
+      const log = await prisma.operationLog.findFirst({
+        where: { resultHandle: handle },
+        orderBy: { blockTime: 'desc' },
+      });
+
+      if (!log) return null;
+
+      // BigInt를 number로 변환
+      return {
+        ...log,
+        slot: Number(log.slot),
+        blockTime: log.blockTime ? Number(log.blockTime) : null,
+      };
+    } catch (e) {
+      log.error('Failed to fetch operation by result handle', e);
+      throw e;
+    }
+  },
 };
 
 
