@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useFHE } from './fhe-provider'
-import { useFheActions } from '@/hooks/use-fhe-actions'
+import { useFheActions } from '@/features/fhe/data-access/use-fhe-actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -63,4 +63,3 @@ export function InputCard({ label, onRegistered }: InputCardProps) {
     </Card>
   )
 }
-

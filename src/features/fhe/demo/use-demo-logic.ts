@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useFHE } from '@/components/fhe/fhe-provider';
+import { useFHE } from '@/features/fhe/ui/fhe-provider';
 import { useSolana } from '@/components/solana/use-solana';
-import { useFheActions } from './use-fhe-actions'; // 위에서 수정한 파일 임포트
+import { useFheActions } from '@/features/fhe/data-access/use-fhe-actions';
 import { Ciphertext, Fhe16BinaryOp } from '@/types/fhe';
 import { deriveBinaryHandle } from '@/lib/handle-utils';
 
@@ -202,4 +202,3 @@ export function useDemoLogic() {
     isRegistering
   };
 }
-

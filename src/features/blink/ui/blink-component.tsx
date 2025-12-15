@@ -2,7 +2,7 @@
 
 import { useBlink } from '@dialectlabs/blinks'
 import { Blink } from '@dialectlabs/blinks'
-import { useBlinkAdapter } from './blink-adapter'
+import { useBlinkAdapter } from '@/features/blink/data-access/use-blink-adapter'
 import type React from 'react'
 
 export const BlinkComponent: React.FC<{
@@ -76,5 +76,3 @@ export const BlinkComponent: React.FC<{
     </div>
   )
 }
-
-

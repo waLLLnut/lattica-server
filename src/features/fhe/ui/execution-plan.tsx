@@ -63,4 +63,3 @@ export function ExecutionPlan({ operation }: ExecutionPlanProps) {
     </div>
   );
 }
-

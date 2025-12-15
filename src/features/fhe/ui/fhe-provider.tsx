@@ -157,4 +157,3 @@ export const useFHE = () => {
   if (!ctx) throw new Error('useFHE must be used within FHEProvider')
   return ctx
 }
-
