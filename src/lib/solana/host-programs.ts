@@ -4,7 +4,7 @@
  */
 
 import { PublicKey } from '@solana/web3.js'
-import { getInstructionDiscriminator } from './anchor-utils'
+import { getInstructionDiscriminator } from './anchor'
 
 /**
  * Validate and parse Solana public key

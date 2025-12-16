@@ -1,4 +1,4 @@
-// src/lib/handle-utils.ts
+// src/lib/solana/handle.ts
 // Rust 프로그램의 hashv 로직을 TypeScript로 정확히 포팅
 // 결정적 핸들 계산을 위한 순수 함수
 
@@ -138,5 +138,4 @@ export function deriveTernaryHandle(
     return '';
   }
 }
-
 

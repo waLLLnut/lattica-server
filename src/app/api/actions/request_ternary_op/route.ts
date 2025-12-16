@@ -12,7 +12,7 @@ import {
 } from '@solana/web3.js'
 import { ACTIONS_CORS_HEADERS, BLOCKCHAIN_IDS, ActionGetResponse, ActionPostRequest, ActionPostResponse } from '@solana/actions'
 import { createLogger } from '@/lib/logger'
-import { buildRequestTernaryOpData, Fhe16TernaryOp, validatePublicKey } from '@/lib/host-programs-utils'
+import { buildRequestTernaryOpData, Fhe16TernaryOp, validatePublicKey } from '@/lib/solana/host-programs'
 
 const log = createLogger('API:RequestTernaryOp')
 const connection = new Connection('https://api.devnet.solana.com', 'confirmed')

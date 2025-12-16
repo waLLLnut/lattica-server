@@ -3,7 +3,7 @@
 import { type BlinkAdapter } from '@dialectlabs/blinks'
 import { useMemo } from 'react'
 import { useSolana } from '@/components/solana/use-solana'
-import { signAndSendBase64Transaction } from '@/lib/solana-signer'
+import { signAndSendBase64Transaction } from '@/lib/solana/signer'
 
 const SUPPORTED_BLOCKCHAIN_IDS = [
   'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
@@ -34,3 +34,4 @@ export function useBlinkAdapter(): BlinkAdapter | null {
     }
   }, [account, wallet, cluster.id])
 }
+

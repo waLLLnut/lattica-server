@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useSolana } from '@/components/solana/use-solana'
 import { useFHE } from '@/features/fhe/ui/fhe-provider'
 import { Fhe16BinaryOp, Fhe16UnaryOp, Fhe16TernaryOp } from '@/types/fhe'
-import { signAndSendBase64Transaction } from '@/lib/solana-signer'
+import { signAndSendBase64Transaction } from '@/lib/solana/signer'
 
 export function useFheActions() {
   // useSolana()는 walletUi 객체를 포함하므로 wallet 접근 가능

@@ -3,7 +3,7 @@ import { useFHE } from '@/features/fhe/ui/fhe-provider';
 import { useSolana } from '@/components/solana/use-solana';
 import { useFheActions } from '@/features/fhe/data-access/use-fhe-actions';
 import { Ciphertext, Fhe16BinaryOp } from '@/types/fhe';
-import { deriveBinaryHandle } from '@/lib/handle-utils';
+import { deriveBinaryHandle } from '@/lib/solana/handle';
 
 // 환경변수에서 Program ID 로드
 const PROGRAM_ID = process.env.NEXT_PUBLIC_PROGRAM_ID || 'FkLGYGk2bypUXgpGmcsCTmKZo6LCjHaXswbhY1LNGAKj';
@@ -202,3 +202,4 @@ export function useDemoLogic() {
     isRegistering
   };
 }
+
