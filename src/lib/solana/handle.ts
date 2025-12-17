@@ -32,6 +32,24 @@ export function bytesToHex(bytes: Uint8Array): string {
 }
 
 /**
+ * [Core Logic] 입력 핸들 생성 (Input Handle Derivation)
+ * 암호화된 데이터 배열로부터 결정적 핸들을 생성
+ * 규칙: 신규 암호문의 등록의 경우 항상 SHA256 해시를 사용합니다. Solana의 hashv와 동일한 방식으로 계산됩니다.
+ * @param encryptedData - 암호화된 데이터 배열 (number[])
+ * @returns 32바이트 hex 문자열 핸들
+ */
+export function deriveInputHandle(encryptedData: number[]): string {
+  // 암호화된 데이터 배열을 바이트 배열로 변환 (little-endian 32-bit integer)
+  const ctBytes = Buffer.from(new Uint32Array(encryptedData).buffer);
+
+  // SHA256 해시 계산 (Solana의 hashv와 동일한 방식)
+  const hash = sha256(ctBytes);
+
+  // 32바이트 해시를 hex 문자열로 변환
+  return bytesToHex(hash);
+}
+
+/**
  * [Core Logic] 단항 연산 결과 핸들 미리 계산 (Prediction)
  * @param op - 연산자 Enum 값 (예: Not=0, Abs=1, Neg=2)
  * @param inputHandle - 입력 핸들 (32 bytes hex)

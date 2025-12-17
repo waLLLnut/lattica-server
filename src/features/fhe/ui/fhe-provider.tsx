@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { FHE16Module, FHE_PARAMS, Ciphertext } from '@/types/fhe'
+import { deriveInputHandle } from '@/lib/solana/handle'
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
@@ -123,15 +124,15 @@ export function FHEProvider({ children }: { children: ReactNode }) {
         return null
       }
 
-      // 32바이트 핸들 생성 (실제로는 해시 등을 사용 권장)
-      const mockHandle = Array.from({ length: 32 }, () =>
-        Math.floor(Math.random() * 256)
-          .toString(16)
-          .padStart(2, '0')
-      ).join('')
+      // 핸들 생성 (handle.ts의 유도 규칙 사용)
+      const handle = deriveInputHandle(ctArray)
+      if (!handle) {
+        addLog('Failed to derive handle', 'error', 'Encrypt')
+        return null
+      }
 
       const ciphertext: Ciphertext = {
-        handle: mockHandle,
+        handle,
         encrypted_data: ctArray,
         timestamp: Date.now(),
         scheme: 'FHE16_0.0.1v',
@@ -157,3 +158,4 @@ export const useFHE = () => {
   if (!ctx) throw new Error('useFHE must be used within FHEProvider')
   return ctx
 }
+

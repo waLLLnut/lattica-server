@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import { Ciphertext } from '@/types/fhe';
 
 interface ConfidentialVariableCardProps {
@@ -21,16 +22,27 @@ export function ConfidentialVariableCard({
   color 
 }: ConfidentialVariableCardProps) {
   const isEncrypted = state === 'encrypted';
+  const prevHandleRef = useRef<string | null>(null);
+  const [isChanging, setIsChanging] = useState(false);
 
-  // 1. 암호문 텍스트 시각화 (기존 데모처럼 일부 데이터만 Hex/String으로 변환하여 보여줌)
+  // 암호문 변경 감지 및 시각적 피드백
+  useEffect(() => {
+    if (ciphertext?.handle) {
+      const currentHandle = ciphertext.handle;
+      if (prevHandleRef.current && prevHandleRef.current !== currentHandle) {
+        // 암호문이 변경되었을 때 플래시 효과
+        setIsChanging(true);
+        setTimeout(() => setIsChanging(false), 600);
+      }
+      prevHandleRef.current = currentHandle;
+    }
+  }, [ciphertext?.handle]);
+
+  // 1. 암호문 텍스트 시각화 (핸들 값만 표시)
   const getDisplayValue = () => {
     if (isEncrypted && ciphertext) {
-      // 암호문 데이터의 일부를 가져와서 시각적으로 보여줌
-      return ciphertext.encrypted_data
-        .slice(0, 8) 
-        .map((n: number) => Math.abs(n % 1296).toString(36).padStart(2, '0'))
-        .join('')
-        .toUpperCase() + '...';
+      // 핸들 값만 표시 (앞 8자리)
+      return ciphertext.handle.slice(0, 8);
     }
     return value;
   };
@@ -44,6 +56,14 @@ export function ConfidentialVariableCard({
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
+        @keyframes flash {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(1.02); }
+        }
+        @keyframes pulse-border {
+          0%, 100% { box-shadow: 0 0 15px ${color}4d; }
+          50% { box-shadow: 0 0 30px ${color}ff, 0 0 20px ${color}aa; }
+        }
       `}</style>
 
       <div style={{
@@ -52,42 +72,40 @@ export function ConfidentialVariableCard({
         background: isEncrypted ? `${color}1a` : '#0a0a0a', 
         borderRadius: '8px',
         // 테두리 색상 및 빛나는 효과(Box Shadow) 복원
-        border: `2px solid ${isEncrypted ? color : '#333'}`,
+        border: `2px solid ${isEncrypted ? (isChanging ? '#ffffff' : color) : '#333'}`,
         boxShadow: isEncrypted ? `0 0 15px ${color}4d` : 'none', // 4d = ~30% opacity
         minWidth: '200px',
-        transition: 'all 0.3s ease'
+        transition: 'all 0.3s ease',
+        // 변경 감지 시 플래시 효과
+        animation: isChanging ? 'flash 0.6s ease, pulse-border 0.6s ease' : undefined
       }}>
         <div style={{ fontSize: '12px', fontWeight: 'bold', color: color, marginBottom: '6px' }}>
           {label}
         </div>
 
-        {/* 3. 텍스트 빛나는 효과 적용 */}
+        {/* 3. 텍스트 표시 */}
         <div style={{ 
-          fontSize: '20px', 
+          fontSize: '16px', 
           fontFamily: 'monospace', 
           marginBottom: '8px',
           minHeight: '30px',
           fontWeight: isEncrypted ? 'bold' : 'normal',
-          
-          // 핵심: 암호화 상태일 때 Gradient Text 적용
-          ...(isEncrypted ? {
-            background: `linear-gradient(90deg, ${color}, #ffffff, ${color})`,
-            backgroundSize: '200% 100%',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            animation: 'gradient-shine 2s ease infinite'
-          } : {
-            color: state === 'decrypted' ? '#10b981' : '#fff' // 복호화시 초록/흰색
-          })
+          color: isEncrypted ? color : (state === 'decrypted' ? '#10b981' : '#fff'),
+          transition: 'all 0.3s ease'
         }}>
           {getDisplayValue()}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: '10px', color: '#666' }}>
-            {isEncrypted ? 'ENCRYPTED' : cid ? 'REGISTERED' : 'INITIAL'}
+          <div style={{ fontSize: '10px', color: isChanging ? color : '#666', transition: 'color 0.3s ease' }}>
+            {isEncrypted ? (isChanging ? 'RE-ENCRYPTED!' : 'ENCRYPTED') : cid ? 'REGISTERED' : 'INITIAL'}
           </div>
-          {cid && (
+          {ciphertext && (
+            <div style={{ fontSize: '9px', color: '#444', fontFamily: 'monospace' }}>
+              Handle: {ciphertext.handle.slice(0, 8)}...
+            </div>
+          )}
+          {cid && !ciphertext && (
             <div style={{ fontSize: '10px', color: '#444', fontFamily: 'monospace' }}>
               CID: {cid.slice(0, 6)}...
             </div>
@@ -97,3 +115,4 @@ export function ConfidentialVariableCard({
     </>
   );
 }
+

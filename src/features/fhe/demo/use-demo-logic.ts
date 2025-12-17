@@ -77,11 +77,17 @@ export function useDemoLogic() {
   // 1. Encrypt Input
   const handleEncrypt = () => {
     const amount = amounts[operation];
+    const prevCt = ciphertexts[operation];
     addLog(`Encrypting ${operation} amount: ${amount}...`, 'info', 'Encrypt');
     const ct = encryptValue(amount);
     if (ct) {
+      const isReEncrypt = prevCt !== null && prevCt.handle !== ct.handle;
       setCiphertexts(prev => ({ ...prev, [operation]: ct }));
-      addLog('Encryption successful', 'info', 'Encrypt');
+      if (isReEncrypt) {
+        addLog(`Re-encryption successful! New handle: ${ct.handle.slice(0, 16)}... (Previous: ${prevCt.handle.slice(0, 16)}...)`, 'info', 'Encrypt');
+      } else {
+        addLog(`Encryption successful! Handle: ${ct.handle.slice(0, 16)}...`, 'info', 'Encrypt');
+      }
     }
   };
 
