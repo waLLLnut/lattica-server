@@ -11,7 +11,7 @@ export interface LogContext {
 }
 
 class Logger {
-  private minLevel: LogLevel = 'info'
+  private minLevel: LogLevel = (process.env.LOG_LEVEL as LogLevel) || 'info'
   private isDevelopment = process.env.NODE_ENV !== 'production'
 
   private levelPriority: Record<LogLevel, number> = {

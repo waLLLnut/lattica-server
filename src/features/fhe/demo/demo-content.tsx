@@ -1,6 +1,7 @@
 'use client';
 
 import { LogConsole } from '@/features/fhe/ui/log-console';
+import { EventMonitor } from '@/features/fhe/ui/event-monitor';
 import { StepCard } from '@/features/fhe/ui/step-card';
 import { ExecutionPlan } from '@/features/fhe/ui/execution-plan';
 import { ConfidentialVariableCard } from '@/features/fhe/ui/confidential-variable-card';
@@ -149,6 +150,10 @@ export function DemoContent() {
       </StepCard>
 
       <LogConsole />
+      
+      {/* Real-time Event Monitor */}
+      <EventMonitor />
     </div>
   );
 }
+

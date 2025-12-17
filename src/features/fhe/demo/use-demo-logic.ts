@@ -4,6 +4,9 @@ import { useSolana } from '@/components/solana/use-solana';
 import { useFheActions } from '@/features/fhe/data-access/use-fhe-actions';
 import { Ciphertext, Fhe16BinaryOp } from '@/types/fhe';
 import { deriveBinaryHandle } from '@/lib/solana/handle';
+import { useEventSubscription } from '@/hooks/use-event-subscription';
+import { useConfidentialStateStore } from '@/lib/store/confidential-state-store';
+import { isUserEvent } from '@/types/pubsub';
 
 // 환경변수에서 Program ID 로드
 const PROGRAM_ID = process.env.NEXT_PUBLIC_PROGRAM_ID || 'FkLGYGk2bypUXgpGmcsCTmKZo6LCjHaXswbhY1LNGAKj';
@@ -17,6 +20,38 @@ export function useDemoLogic() {
   
   // ★ useFheActions 훅 사용
   const { registerInputHandle, requestBinaryOp, loading: isActionLoading } = useFheActions();
+  
+  // ★ Confidential State Store
+  const {
+    addOptimistic,
+    fail,
+    getItem,
+    getItemsByOwner,
+    handleEvent,
+  } = useConfidentialStateStore();
+  
+  // ★ SSE 이벤트 구독
+  const { isConnected, lastEventId } = useEventSubscription({
+    channel: 'user',
+    wallet: account?.address,
+    enabled: !!account?.address,
+    onEvent: (message) => {
+      // User 이벤트만 처리
+      if (isUserEvent(message)) {
+        handleEvent(message);
+        addLog(`Event received: ${message.eventType}`, 'info', 'SSE');
+      }
+    },
+    onError: (error) => {
+      addLog(`SSE error: ${error.message}`, 'error', 'SSE');
+    },
+    onConnect: () => {
+      addLog('SSE connected', 'info', 'SSE');
+    },
+    onDisconnect: () => {
+      addLog('SSE disconnected', 'warn', 'SSE');
+    },
+  });
 
   // --- State Variables ---
   // 1. Confidential State (Balances)
@@ -99,16 +134,43 @@ export function useDemoLogic() {
       return;
     }
 
+    if (!account?.address) {
+      addLog('Connect wallet first', 'warn', 'Register');
+      return;
+    }
+
     try {
+      // Optimistic Update: 트랜잭션 전송 전에 상태 추가
+      addOptimistic(
+        ct.handle,
+        account.address,
+        '', // signature는 나중에 업데이트
+        undefined, // predictedHandle 없음
+        ct.handle // clientTag로 handle 사용
+      );
+
       // useFheActions의 함수 호출 (내부에서 서명까지 완료 후 signature 반환)
       const signature = await registerInputHandle(ct.handle, ct.encrypted_data);
       
       if (signature) {
         setRegTxSig(signature);
         setInputHandles(prev => ({ ...prev, [operation]: ct.handle }));
+        
+        // Store의 optimistic 아이템에 signature 업데이트
+        const item = getItem(ct.handle);
+        if (item && item.status === 'optimistic') {
+          // Store를 직접 수정할 수 없으므로, confirm으로 재설정
+          // (실제로는 store에 updateSignature 메서드 추가 필요할 수 있음)
+        }
+        
+        addLog(`Registered with signature: ${signature.slice(0, 8)}...`, 'info', 'Register');
       }
     } catch (e) {
-      // 에러 로그는 hook 내부에서 이미 찍혔으므로 여기선 생략 가능
+      // 에러 발생 시 optimistic 상태 롤백
+      const item = getItem(ct.handle);
+      if (item && item.status === 'optimistic') {
+        fail(ct.handle);
+      }
       console.error(e);
     }
   };
@@ -120,6 +182,8 @@ export function useDemoLogic() {
       return;
     }
 
+    let predictedHandle: string | null = null;
+    
     try {
       // 파라미터 준비
       let opCode: number = Fhe16BinaryOp.Add;
@@ -144,7 +208,7 @@ export function useDemoLogic() {
       }
 
       // Optimistic UI: 결과 핸들 예측
-      const predictedHandle = deriveBinaryHandle(opCode, lhs, rhs, PROGRAM_ID);
+      predictedHandle = deriveBinaryHandle(opCode, lhs, rhs, PROGRAM_ID);
       if (predictedHandle) {
         addLog(`🔮 Handle Prediction: ${predictedHandle.slice(0, 8)}...`, 'info', 'Prediction');
       }
@@ -154,16 +218,31 @@ export function useDemoLogic() {
 
       if (signature) {
         setOpTxSig(signature);
-        // 예측 성공 시 결과 핸들 업데이트 (Optimistic Update)
-        if (predictedHandle) {
-           setResultHandle(predictedHandle);
+        
+        // Optimistic Update: 예측된 결과 핸들을 optimistic 상태로 추가
+        if (predictedHandle && account?.address) {
+          addOptimistic(
+            predictedHandle,
+            account.address,
+            signature,
+            predictedHandle
+          );
+          setResultHandle(predictedHandle);
+          addLog('Optimistic update added', 'info', 'OpRequest');
         }
+        
         addLog('Operation submitted successfully', 'info', 'OpRequest');
       }
 
     } catch (e) {
       console.error(e);
-      // 에러 발생 시에도 예측 핸들은 남겨둘지 여부 결정 (현재는 hook이 에러 던짐)
+      // 에러 발생 시 optimistic 상태 롤백
+      if (predictedHandle) {
+        const item = getItem(predictedHandle);
+        if (item && item.status === 'optimistic') {
+          fail(predictedHandle);
+        }
+      }
     }
   };
 
@@ -194,6 +273,26 @@ export function useDemoLogic() {
     }, 1000);
   };
 
+  // Store에서 상태 동기화 (SSE 이벤트로 업데이트된 상태 반영)
+  useEffect(() => {
+    if (account?.address) {
+      const storeItems = getItemsByOwner(account.address);
+      // Store의 confirmed 상태를 로컬 상태와 동기화
+      storeItems.forEach((item) => {
+        if (item.status === 'confirmed') {
+          // 결과 핸들이면 resultHandle 업데이트
+          if (item.handle === resultHandle || item.predictedHandle === resultHandle) {
+            setResultHandle(item.handle);
+          }
+          // 입력 핸들이면 inputHandles 업데이트
+          if (item.handle && inputHandles[operation] !== item.handle) {
+            // 해당 operation의 handle인지 확인 필요
+          }
+        }
+      });
+    }
+  }, [account?.address, getItemsByOwner, resultHandle, inputHandles, operation]);
+
   return {
     confidentialSOL, confidentialUSDC,
     solBalanceState, usdcBalanceState,
@@ -205,7 +304,10 @@ export function useDemoLogic() {
     handleEncrypt, handleRegister, handleSubmitJob, handleDecrypt,
     publicKey: account?.address,
     moduleReady,
-    isRegistering
+    isRegistering,
+    // SSE 연결 상태 추가
+    sseConnected: isConnected,
+    lastEventId,
   };
 }
 

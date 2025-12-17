@@ -27,6 +27,19 @@ import { CiphertextStore } from "@/lib/store/ciphertext-store";
 import { OperationLogStore } from "@/lib/store/operation-log-store";
 import { IndexerStateStore } from "@/lib/store/indexer-state-store";
 import { createLogger } from "@/lib/logger";
+// Pub/Sub 이벤트 발행 함수들
+import {
+  publishGlobalInputHandleRegistered,
+  publishGlobalUnaryOpRequested,
+  publishGlobalBinaryOpRequested,
+  publishGlobalTernaryOpRequested,
+  publishGlobalIndexerStatus,
+  publishUserCiphertextRegistered,
+  publishUserCiphertextConfirmed,
+  publishUserOperationCompletedUnary,
+  publishUserOperationCompletedBinary,
+  publishUserOperationCompletedTernary,
+} from "@/lib/redis/pubsub";
 
 const log = createLogger('IndexerWorker');
 
@@ -112,6 +125,20 @@ async function main() {
           // 상태 업데이트
           await IndexerStateStore.updateState(programId, event.slot, event.signature);
           
+          // Pub/Sub 이벤트 발행
+          // 1. Global 채널: 온체인 이벤트를 그대로 전달
+          await publishGlobalInputHandleRegistered(event).catch((err) => {
+            log.error('Failed to publish global InputHandleRegistered event', err);
+          });
+          
+          // 2. User 채널: 유저 관점의 이벤트 발행
+          await publishUserCiphertextRegistered(event).catch((err) => {
+            log.error('Failed to publish user ciphertext registered event', err);
+          });
+          await publishUserCiphertextConfirmed(event).catch((err) => {
+            log.error('Failed to publish user ciphertext confirmed event', err);
+          });
+          
           log.debug('Input handle confirmed and state updated', { handle: handleHex });
         } catch (error) {
           log.error('Failed to confirm input handle', error, { handle: handleHex });
@@ -130,6 +157,17 @@ async function main() {
         try {
           await OperationLogStore.saveUnary(event);
           await IndexerStateStore.updateState(programId, event.slot, event.signature);
+          
+          // Pub/Sub 이벤트 발행
+          // 1. Global 채널: 온체인 이벤트를 그대로 전달
+          await publishGlobalUnaryOpRequested(event).catch((err) => {
+            log.error('Failed to publish global UnaryOpRequested event', err);
+          });
+          
+          // 2. User 채널: 유저 관점의 이벤트 발행
+          await publishUserOperationCompletedUnary(event).catch((err) => {
+            log.error('Failed to publish user operation completed event', err);
+          });
         } catch (error) {
           log.error('Failed to save unary operation', error);
         }
@@ -146,6 +184,17 @@ async function main() {
         try {
           await OperationLogStore.saveBinary(event);
           await IndexerStateStore.updateState(programId, event.slot, event.signature);
+          
+          // Pub/Sub 이벤트 발행
+          // 1. Global 채널: 온체인 이벤트를 그대로 전달
+          await publishGlobalBinaryOpRequested(event).catch((err) => {
+            log.error('Failed to publish global BinaryOpRequested event', err);
+          });
+          
+          // 2. User 채널: 유저 관점의 이벤트 발행
+          await publishUserOperationCompletedBinary(event).catch((err) => {
+            log.error('Failed to publish user operation completed event', err);
+          });
         } catch (error) {
           log.error('Failed to save binary operation', error);
         }
@@ -162,14 +211,36 @@ async function main() {
         try {
           await OperationLogStore.saveTernary(event);
           await IndexerStateStore.updateState(programId, event.slot, event.signature);
+          
+          // Pub/Sub 이벤트 발행
+          // 1. Global 채널: 온체인 이벤트를 그대로 전달
+          await publishGlobalTernaryOpRequested(event).catch((err) => {
+            log.error('Failed to publish global TernaryOpRequested event', err);
+          });
+          
+          // 2. User 채널: 유저 관점의 이벤트 발행
+          await publishUserOperationCompletedTernary(event).catch((err) => {
+            log.error('Failed to publish user operation completed event', err);
+          });
         } catch (error) {
           log.error('Failed to save ternary operation', error);
         }
       },
 
       // --- 에러 및 재연결 핸들링 ---
-      onError: (error: Error) => {
+      onError: async (error: Error) => {
         log.error('Indexer fatal error', error);
+        
+        // 인덱서 에러 이벤트 발행
+        const stats = indexer.getStats();
+        await publishGlobalIndexerStatus(
+          'error',
+          stats.lastProcessedSlot,
+          stats.lastProcessedSignature || undefined,
+          error.message
+        ).catch((err) => {
+          log.error('Failed to publish indexer error event', err);
+        });
       },
       
       onReconnect: () => {
@@ -183,7 +254,16 @@ async function main() {
     indexer.setLastProcessedSlot(lastProcessedSlot, lastProcessedSignature);
   }
 
-  log.info('✅ Indexer is running and listening for events.');
+  log.info('Indexer is running and listening for events.');
+  
+  // 인덱서 시작 상태 이벤트 발행
+  await publishGlobalIndexerStatus(
+    'running',
+    lastProcessedSlot,
+    lastProcessedSignature || undefined
+  ).catch((err) => {
+    log.error('Failed to publish indexer status event', err);
+  });
 
   // 통계 주기적으로 출력 (1분마다)
   setInterval(() => {
@@ -204,6 +284,17 @@ async function main() {
   // 프로세스 종료 시그널 처리
   const shutdown = async () => {
     log.info('Shutting down indexer...');
+    
+    // 인덱서 중지 상태 이벤트 발행
+    const stats = indexer.getStats();
+    await publishGlobalIndexerStatus(
+      'stopped',
+      stats.lastProcessedSlot,
+      stats.lastProcessedSignature || undefined
+    ).catch((err) => {
+      log.error('Failed to publish indexer stopped event', err);
+    });
+    
     await cleanupIndexer();
     process.exit(0);
   };

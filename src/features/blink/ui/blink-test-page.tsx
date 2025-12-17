@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { BlinkComponent } from './blink-component'
+import { EventMonitor } from '@/features/fhe/ui/event-monitor'
+import { FHEProvider } from '@/features/fhe/ui/fhe-provider'
 
 export function BlinkTestPage() {
   const [blinkUrl, setBlinkUrl] = useState<string>('')
@@ -85,6 +87,14 @@ export function BlinkTestPage() {
             <BlinkComponent url={activeUrl} />
           </div>
         )}
+
+        {/* Real-time Event Monitor */}
+        <FHEProvider>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow">
+            <h2 className="text-xl font-semibold mb-4">Real-time Events</h2>
+            <EventMonitor />
+          </div>
+        </FHEProvider>
       </div>
     </div>
   )

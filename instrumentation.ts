@@ -6,16 +6,16 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     // 서버 사이드에서만 실행
-    const { startIndexerInNextJs } = await import("./src/server/start-indexer");
-    const { createLogger } = await import("./src/lib/logger");
+    // const { startIndexerInNextJs } = await import("./src/server/start-indexer");
+    // const { createLogger } = await import("./src/lib/logger");
     
-    const log = createLogger("Instrumentation");
+    // const log = createLogger("Instrumentation");
     
-    // 인덱서 시작 (싱글톤 보장)
-    // 에러가 발생해도 Next.js 서버는 계속 실행
-    startIndexerInNextJs().catch((error) => {
-      log.error("Failed to start indexer", error);
-    });
+    // // 인덱서 시작 (싱글톤 보장)
+    // // 에러가 발생해도 Next.js 서버는 계속 실행
+    // startIndexerInNextJs().catch((error) => {
+    //   log.error("Failed to start indexer", error);
+    // });
   }
 }
 
