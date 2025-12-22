@@ -12,7 +12,7 @@ import type {
   EventHandlers,
   IndexerMode,
 } from "@/types/indexer";
-import { createDefaultConfig } from "./config";
+import { createDefaultConfig, detectRpcType, getRpcConfig, type RpcType, type RpcConfig } from "./config";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("Indexer");
@@ -46,10 +46,31 @@ export class HostProgramsIndexer {
   private maxReconnectAttempts = 10;
   private currentMode: IndexerMode | null = null;
   private isRunning = false;
+  
+  // Rate limiting 관련 상태
+  private rpcType: RpcType;
+  private rpcConfig: RpcConfig;
+  private currentPollInterval: number;
+  private rateLimitBackoffUntil: number | null = null; // Rate limit 해제 시각 (timestamp)
+  private consecutiveRateLimitErrors = 0;
 
   constructor(config: IndexerConfig, idl: Idl) {
     // 설정 병합 및 기본값 적용
-    this.config = createDefaultConfig(config.network, config.programId, config);
+    const fullConfig = createDefaultConfig(config.network, config.programId, config);
+    this.config = fullConfig;
+
+    // RPC 타입 및 설정 가져오기 (config에서 가져오거나 직접 감지)
+    this.rpcType = (fullConfig as Required<IndexerConfig & { rpcType: RpcType; rpcConfig: RpcConfig }>).rpcType || detectRpcType(this.config.rpcEndpoint);
+    this.rpcConfig = (fullConfig as Required<IndexerConfig & { rpcType: RpcType; rpcConfig: RpcConfig }>).rpcConfig || getRpcConfig(this.rpcType);
+    this.currentPollInterval = this.config.pollInterval;
+
+    log.info('Indexer initialized with RPC configuration', {
+      rpcEndpoint: this.config.rpcEndpoint,
+      rpcType: this.rpcType,
+      pollInterval: this.currentPollInterval,
+      maxBatches: this.config.maxBatches,
+      requestDelay: this.rpcConfig.requestDelay,
+    });
 
     this.connection = new Connection(this.config.rpcEndpoint, {
       commitment: this.config.commitment,
@@ -159,12 +180,15 @@ export class HostProgramsIndexer {
 
     this.isPolling = true;
     this.currentMode = "polling";
-    log.info("Starting polling mode", { interval_ms: this.config.pollInterval });
+    log.info("Starting polling mode", { 
+      interval_ms: this.currentPollInterval,
+      rpcType: this.rpcType,
+    });
 
     if (this.lastProcessedSlot === 0) {
       // 초기 슬롯 설정: 현재 슬롯에서 시작 (과거 트랜잭션은 제외)
       // 재시도 로직 추가
-      let retries = 3;
+      let retries = this.rpcConfig.maxRetries;
       while (retries > 0) {
         try {
           this.lastProcessedSlot = await this.connection.getSlot(
@@ -175,25 +199,20 @@ export class HostProgramsIndexer {
         } catch (error) {
           retries--;
           if (retries === 0) {
-            log.error("Failed to get initial slot after 3 attempts", error);
+            log.error("Failed to get initial slot after retries", error);
             throw error;
           }
           log.warn("Failed to get initial slot, retrying", { 
-            attempt: 3 - retries,
-            max_attempts: 3 
+            attempt: this.rpcConfig.maxRetries - retries,
+            max_attempts: this.rpcConfig.maxRetries,
           });
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await this.handleRateLimitError(error as Error, 1000);
         }
       }
     }
 
-    this.pollIntervalId = setInterval(async () => {
-      try {
-        await this.pollForNewTransactions();
-      } catch (error) {
-        this.handleError(error as Error);
-      }
-    }, this.config.pollInterval);
+    // Polling 시작 (동적 interval 사용)
+    this.startPolling();
   }
 
   /**
@@ -208,11 +227,114 @@ export class HostProgramsIndexer {
   }
 
   /**
+   * Rate limit 에러 처리
+   */
+  private async handleRateLimitError(error: Error, defaultDelay: number = 1000): Promise<void> {
+    const errorMessage = error.message.toLowerCase();
+    const isRateLimit = 
+      errorMessage.includes('429') ||
+      errorMessage.includes('too many requests') ||
+      errorMessage.includes('rate limit') ||
+      errorMessage.includes('rate_limit');
+
+    if (isRateLimit) {
+      this.consecutiveRateLimitErrors++;
+      const backoffMultiplier = this.rpcConfig.rateLimitBackoff;
+      const backoffDuration = this.currentPollInterval * backoffMultiplier * this.consecutiveRateLimitErrors;
+      
+      this.rateLimitBackoffUntil = Date.now() + backoffDuration;
+      this.currentPollInterval = Math.min(
+        this.currentPollInterval * backoffMultiplier,
+        this.config.pollInterval * 10 // 최대 10배까지만
+      );
+
+      log.warn("Rate limit detected, applying backoff", {
+        consecutiveErrors: this.consecutiveRateLimitErrors,
+        backoffDuration,
+        newPollInterval: this.currentPollInterval,
+        rpcType: this.rpcType,
+      });
+
+      await new Promise(resolve => setTimeout(resolve, backoffDuration));
+    } else {
+      // Rate limit이 아닌 다른 에러는 기본 지연만
+      await new Promise(resolve => setTimeout(resolve, defaultDelay));
+    }
+  }
+
+  /**
+   * RPC 요청 실행 (Rate limiting 및 에러 처리 포함)
+   */
+  private async executeRpcRequest<T>(
+    request: () => Promise<T>,
+    operation: string
+  ): Promise<T> {
+    const maxRetries = this.rpcConfig.maxRetries;
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // 요청 간 지연 (RPC 타입별)
+        if (this.rpcConfig.requestDelay > 0 && attempt > 1) {
+          await new Promise(resolve => setTimeout(resolve, this.rpcConfig.requestDelay));
+        }
+
+        const result = await request();
+        
+        // 성공 시 연속 에러 카운트 리셋
+        if (this.consecutiveRateLimitErrors > 0) {
+          this.consecutiveRateLimitErrors = 0;
+        }
+
+        return result;
+      } catch (error) {
+        lastError = error as Error;
+        const errorMessage = (error as Error).message.toLowerCase();
+        const isRateLimit = 
+          errorMessage.includes('429') ||
+          errorMessage.includes('too many requests') ||
+          errorMessage.includes('rate limit');
+
+        if (isRateLimit) {
+          log.warn(`Rate limit error on ${operation}`, {
+            attempt,
+            maxRetries,
+            rpcType: this.rpcType,
+          });
+          
+          if (attempt < maxRetries) {
+            const backoffDelay = this.currentPollInterval * this.rpcConfig.rateLimitBackoff * attempt;
+            await new Promise(resolve => setTimeout(resolve, backoffDelay));
+            continue;
+          }
+        } else {
+          log.warn(`RPC error on ${operation}`, {
+            attempt,
+            maxRetries,
+            error: (error as Error).message,
+          });
+          
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            continue;
+          }
+        }
+      }
+    }
+
+    // 모든 재시도 실패
+    throw lastError || new Error(`Failed to execute ${operation} after ${maxRetries} attempts`);
+  }
+
+  /**
    * 누락 없이 순서대로 트랜잭션을 조회하고 처리
    */
   private async pollForNewTransactions(): Promise<void> {
     try {
-      const currentSlot = await this.connection.getSlot(this.config.commitment);
+      const currentSlot = await this.executeRpcRequest(
+        () => this.connection.getSlot(this.config.commitment),
+        'getSlot'
+      );
 
       if (currentSlot <= this.lastProcessedSlot) {
         return;
@@ -246,10 +368,14 @@ export class HostProgramsIndexer {
       // 순차 처리 (순서 보장)
       for (const sigInfo of allNewSignatures) {
         try {
-          const tx = await this.connection.getTransaction(sigInfo.signature, {
-            commitment: this.config.commitment as Finality,
-            maxSupportedTransactionVersion: 0,
-          });
+          // Rate limiting을 고려한 요청 실행
+          const tx = await this.executeRpcRequest(
+            () => this.connection.getTransaction(sigInfo.signature, {
+              commitment: this.config.commitment as Finality,
+              maxSupportedTransactionVersion: 0,
+            }),
+            `getTransaction(${sigInfo.signature.slice(0, 8)}...)`
+          );
 
           if (!tx) {
             log.warn("Transaction not found", { signature: sigInfo.signature });
@@ -313,13 +439,17 @@ export class HostProgramsIndexer {
 
     while (hasMore && batchCount < maxBatches) {
       try {
-        const signatures = await this.connection.getSignaturesForAddress(
-          this.programId,
-          {
-            limit: 1000, // 최대값 사용
-            before: before,
-          },
-          this.config.commitment as Finality
+        // Rate limiting을 고려한 요청 실행
+        const signatures = await this.executeRpcRequest(
+          () => this.connection.getSignaturesForAddress(
+            this.programId,
+            {
+              limit: 1000, // 최대값 사용
+              before: before,
+            },
+            this.config.commitment as Finality
+          ),
+          `getSignaturesForAddress(batch ${batchCount + 1})`
         );
 
         if (signatures.length === 0) {

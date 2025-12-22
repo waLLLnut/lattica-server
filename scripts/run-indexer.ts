@@ -23,9 +23,11 @@ import type {
   Fhe16TernaryOpRequestedEvent,
 } from "@/lib/indexer";
 import { getDefaultRpcEndpoint, getDefaultWsEndpoint } from "@/lib/indexer/config";
-import { CiphertextStore } from "@/lib/store/ciphertext-store";
-import { OperationLogStore } from "@/lib/store/operation-log-store";
-import { IndexerStateStore } from "@/lib/store/indexer-state-store";
+import { CiphertextRepository } from "@/lib/store/ciphertext-repository";
+import { OperationLogRepository } from "@/lib/store/operation-log-repository";
+import { IndexerStateRepository } from "@/lib/store/indexer-state-repository";
+import { HandleDependencyRepository } from "@/lib/store/handle-dependency-repository";
+import { EventStreamRepository } from "@/lib/store/event-stream-repository";
 import { createLogger } from "@/lib/logger";
 // Pub/Sub 이벤트 발행 함수들
 import {
@@ -89,8 +91,8 @@ async function main() {
   });
 
   // 1. DB에서 마지막 처리 슬롯 가져오기 (Resume 기능)
-  const lastProcessedSlot = await IndexerStateStore.getLastSlot(programId);
-  const lastProcessedSignature = await IndexerStateStore.getLastSignature(programId);
+  const lastProcessedSlot = await IndexerStateRepository.getLastSlot(programId);
+  const lastProcessedSignature = await IndexerStateRepository.getLastSignature(programId);
   
   if (lastProcessedSlot > 0) {
     log.info(`Resuming from slot: ${lastProcessedSlot}`, { 
@@ -120,10 +122,10 @@ async function main() {
         
         try {
           // Redis -> Postgres 영구 저장 확정
-          await CiphertextStore.confirm(handleHex);
+          await CiphertextRepository.confirm(handleHex);
           
           // 상태 업데이트
-          await IndexerStateStore.updateState(programId, event.slot, event.signature);
+          await IndexerStateRepository.updateState(programId, event.slot, event.signature);
           
           // Pub/Sub 이벤트 발행
           // 1. Global 채널: 온체인 이벤트를 그대로 전달
@@ -132,12 +134,26 @@ async function main() {
           });
           
           // 2. User 채널: 유저 관점의 이벤트 발행
-          await publishUserCiphertextRegistered(event).catch((err) => {
+          const registeredMsg = await publishUserCiphertextRegistered(event).catch((err) => {
             log.error('Failed to publish user ciphertext registered event', err);
+            return null;
           });
-          await publishUserCiphertextConfirmed(event).catch((err) => {
+          const confirmedMsg = await publishUserCiphertextConfirmed(event).catch((err) => {
             log.error('Failed to publish user ciphertext confirmed event', err);
+            return null;
           });
+          
+          // 3. EventStream에 저장 (Gap Filling용)
+          if (registeredMsg) {
+            await EventStreamRepository.save(registeredMsg).catch((err) => {
+              log.warn('Failed to save event stream (registered)', err);
+            });
+          }
+          if (confirmedMsg) {
+            await EventStreamRepository.save(confirmedMsg).catch((err) => {
+              log.warn('Failed to save event stream (confirmed)', err);
+            });
+          }
           
           log.debug('Input handle confirmed and state updated', { handle: handleHex });
         } catch (error) {
@@ -155,8 +171,9 @@ async function main() {
         });
         
         try {
-          await OperationLogStore.saveUnary(event);
-          await IndexerStateStore.updateState(programId, event.slot, event.signature);
+          await OperationLogRepository.saveUnary(event);
+          await HandleDependencyRepository.saveUnary(event);
+          await IndexerStateRepository.updateState(programId, event.slot, event.signature);
           
           // Pub/Sub 이벤트 발행
           // 1. Global 채널: 온체인 이벤트를 그대로 전달
@@ -182,8 +199,9 @@ async function main() {
         });
         
         try {
-          await OperationLogStore.saveBinary(event);
-          await IndexerStateStore.updateState(programId, event.slot, event.signature);
+          await OperationLogRepository.saveBinary(event);
+          await HandleDependencyRepository.saveBinary(event);
+          await IndexerStateRepository.updateState(programId, event.slot, event.signature);
           
           // Pub/Sub 이벤트 발행
           // 1. Global 채널: 온체인 이벤트를 그대로 전달
@@ -209,8 +227,9 @@ async function main() {
         });
         
         try {
-          await OperationLogStore.saveTernary(event);
-          await IndexerStateStore.updateState(programId, event.slot, event.signature);
+          await OperationLogRepository.saveTernary(event);
+          await HandleDependencyRepository.saveTernary(event);
+          await IndexerStateRepository.updateState(programId, event.slot, event.signature);
           
           // Pub/Sub 이벤트 발행
           // 1. Global 채널: 온체인 이벤트를 그대로 전달

@@ -34,3 +34,22 @@ export type {
   PubSubMessage,
 } from "./pubsub";
 
+// Local Storage 타입
+export {
+  LOCAL_STORAGE_KEYS,
+  INDEXED_DB_KEYS,
+  mapToRecord,
+  recordToMap,
+  extractMetadata,
+  serializeConfidentialStateStore,
+  deserializeConfidentialStateStore,
+} from "./local-storage";
+export type {
+  MachineStatus,
+  ClientStateItemMeta,
+  ClientStateItem,
+  DependencyEntry,
+  ConfidentialStateStoreSerialized,
+  BlobEntry,
+} from "./local-storage";
+

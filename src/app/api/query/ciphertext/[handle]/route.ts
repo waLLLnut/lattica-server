@@ -2,7 +2,7 @@
 // 특정 핸들의 암호문 데이터와 상태를 조회
 
 import { NextResponse } from 'next/server';
-import { CiphertextStore } from '@/lib/store/ciphertext-store';
+import { CiphertextRepository } from '@/lib/store/ciphertext-repository';
 
 export async function GET(
   request: Request,
@@ -19,7 +19,7 @@ export async function GET(
     }
 
     // 1. Redis/DB에서 조회 (Look-aside)
-    const data = await CiphertextStore.get(handle);
+    const data = await CiphertextRepository.get(handle);
 
     if (!data) {
       return NextResponse.json(
@@ -38,3 +38,4 @@ export async function GET(
     );
   }
 }
+

@@ -439,7 +439,7 @@ export async function publishGlobalIndexerStatus(
  */
 export async function publishUserCiphertextRegistered(
   event: InputHandleRegisteredEvent
-): Promise<void> {
+): Promise<UserPubSubMessage> {
   const client = getPubSubClient();
   const handleHex = toHex(event.handle);
   const clientTagHex = event.clientTag ? toHex(event.clientTag) : undefined;
@@ -466,6 +466,8 @@ export async function publishUserCiphertextRegistered(
     handle: handleHex,
     owner: event.caller,
   });
+  
+  return message;
 }
 
 /**
@@ -474,7 +476,7 @@ export async function publishUserCiphertextRegistered(
  */
 export async function publishUserCiphertextConfirmed(
   event: InputHandleRegisteredEvent
-): Promise<void> {
+): Promise<UserPubSubMessage> {
   const client = getPubSubClient();
   const handleHex = toHex(event.handle);
   const clientTagHex = event.clientTag ? toHex(event.clientTag) : undefined;
@@ -502,6 +504,8 @@ export async function publishUserCiphertextConfirmed(
     handle: handleHex,
     owner: event.caller,
   });
+  
+  return message;
 }
 
 /**

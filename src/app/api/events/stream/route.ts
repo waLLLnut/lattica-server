@@ -9,6 +9,7 @@ import type { PubSubMessage } from '@/types/pubsub';
 import { isUserEvent } from '@/types/pubsub';
 import { createLogger } from '@/lib/logger';
 import { prisma } from '@/lib/db';
+import { EventStreamRepository } from '@/lib/store/event-stream-repository';
 
 const log = createLogger('SSE:Stream');
 
@@ -198,79 +199,16 @@ async function sendGapEvents(
   }
 ) {
   try {
+    // EventStream 테이블에서 Gap Filling 이벤트 조회
+    const events = await EventStreamRepository.getGapEvents({
+      lastEventId: options.lastEventId,
+      sinceSlot: options.sinceSlot,
+      targetOwner: options.wallet,
+      limit: 100,
+    });
 
-    // EventStream 테이블이 있다면 사용 (향후 구현)
-    // 현재는 OperationLog와 Ciphertext에서 조회
-
-    let events: Array<{
-      eventId: string;
-      eventType: string;
-      payload: unknown;
-      publishedAt: number;
-    }> = [];
-
-    if (options.wallet) {
-      // User 채널: 해당 유저의 최근 이벤트 조회
-      // 1. 최근 연산 로그 조회
-      const recentOps = await prisma.operationLog.findMany({
-        where: {
-          caller: options.wallet,
-          ...(options.sinceSlot ? { slot: { gte: BigInt(options.sinceSlot) } } : {}),
-        },
-        orderBy: { slot: 'asc' },
-        take: 100, // 최대 100개
-      });
-
-      // 2. 최근 ciphertext 조회
-      const recentCiphertexts = await prisma.ciphertext.findMany({
-        where: {
-          owner: options.wallet,
-          ...(options.sinceSlot
-            ? { createdAt: { gte: new Date(Date.now() - 3600000) } } // 1시간 이내
-            : {}),
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      });
-
-      // 이벤트로 변환 (간단한 버전)
-      events = [
-        ...recentOps.map((op) => ({
-          eventId: `${op.slot}-${op.signature.substring(0, 8)}-${op.createdAt.getTime()}`,
-          eventType: 'user.operation.completed',
-          payload: {
-            type: 'user.operation.completed',
-            operation: op.operation,
-            operationType: op.type.toLowerCase() as 'unary' | 'binary' | 'ternary',
-            inputHandles: op.inputHandles,
-            resultHandle: op.resultHandle || '',
-            owner: op.caller,
-            signature: op.signature,
-            slot: Number(op.slot),
-            blockTime: op.blockTime ? Number(op.blockTime) : null,
-          },
-          publishedAt: op.createdAt.getTime(),
-        })),
-        ...recentCiphertexts.map((ct) => ({
-          eventId: `${ct.handle}-${ct.createdAt.getTime()}`,
-          eventType: 'user.ciphertext.confirmed',
-          payload: {
-            type: 'user.ciphertext.confirmed',
-            handle: ct.handle,
-            owner: ct.owner,
-            clientTag: ct.clientTag || undefined,
-            status: 'confirmed' as const,
-            signature: '', // Ciphertext에는 signature가 없을 수 있음
-            slot: 0, // 추후 추가 필요
-            blockTime: ct.confirmedAt?.getTime() || null,
-          },
-          publishedAt: ct.confirmedAt?.getTime() || ct.createdAt.getTime(),
-        })),
-      ].sort((a, b) => a.publishedAt - b.publishedAt);
-    } else {
-      // Global 채널: 최근 모든 이벤트 조회 (간단한 버전)
-      // 실제로는 EventStream 테이블이 필요하지만, 현재는 스킵
-      log.warn('Gap filling for global channel not fully implemented');
+    if (events.length > 0) {
+      log.info('Gap events retrieved', { count: events.length, wallet: options.wallet });
     }
 
     // 이벤트 전송

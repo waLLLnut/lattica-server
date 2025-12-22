@@ -11,9 +11,9 @@ import type {
 } from "@/lib/indexer";
 import { getDefaultRpcEndpoint, getDefaultWsEndpoint } from "@/lib/indexer/config";
 import { createLogger } from "@/lib/logger";
-import { CiphertextStore } from "@/lib/store/ciphertext-store";
-import { OperationLogStore } from "@/lib/store/operation-log-store";
-import { IndexerStateStore } from "@/lib/store/indexer-state-store";
+import { CiphertextRepository } from "@/lib/store/ciphertext-repository";
+import { OperationLogRepository } from "@/lib/store/operation-log-repository";
+import { IndexerStateRepository } from "@/lib/store/indexer-state-repository";
 
 const log = createLogger("IndexerStartup");
 
@@ -96,10 +96,10 @@ export async function startIndexerInNextJs(
             
             try {
               // Redis -> PostgreSQL 영구 저장 확정
-              await CiphertextStore.confirm(handleHex);
+              await CiphertextRepository.confirm(handleHex);
               
               // 인덱서 상태 업데이트 (체크포인트)
-              await IndexerStateStore.updateState(programId, event.slot, event.signature);
+              await IndexerStateRepository.updateState(programId, event.slot, event.signature);
             } catch (error) {
               log.error("Failed to confirm ciphertext and update state", error, {
                 handle: handleHex,
@@ -120,10 +120,10 @@ export async function startIndexerInNextJs(
             
             try {
               // 연산 로그 저장
-              await OperationLogStore.saveUnary(event);
+              await OperationLogRepository.saveUnary(event);
               
               // 인덱서 상태 업데이트
-              await IndexerStateStore.updateState(programId, event.slot, event.signature);
+              await IndexerStateRepository.updateState(programId, event.slot, event.signature);
             } catch (error) {
               log.error("Failed to save unary operation log", error);
             }
@@ -141,10 +141,10 @@ export async function startIndexerInNextJs(
             
             try {
               // 연산 로그 저장
-              await OperationLogStore.saveBinary(event);
+              await OperationLogRepository.saveBinary(event);
               
               // 인덱서 상태 업데이트
-              await IndexerStateStore.updateState(programId, event.slot, event.signature);
+              await IndexerStateRepository.updateState(programId, event.slot, event.signature);
             } catch (error) {
               log.error("Failed to save binary operation log", error);
             }
@@ -162,10 +162,10 @@ export async function startIndexerInNextJs(
             
             try {
               // 연산 로그 저장
-              await OperationLogStore.saveTernary(event);
+              await OperationLogRepository.saveTernary(event);
               
               // 인덱서 상태 업데이트
-              await IndexerStateStore.updateState(programId, event.slot, event.signature);
+              await IndexerStateRepository.updateState(programId, event.slot, event.signature);
             } catch (error) {
               log.error("Failed to save ternary operation log", error);
             }
@@ -182,8 +182,8 @@ export async function startIndexerInNextJs(
         };
 
         // DB에서 마지막 처리 슬롯 가져오기 (복구 기능)
-        const lastProcessedSlot = await IndexerStateStore.getLastSlot(programId);
-        const lastProcessedSignature = await IndexerStateStore.getLastSignature(programId);
+        const lastProcessedSlot = await IndexerStateRepository.getLastSlot(programId);
+        const lastProcessedSignature = await IndexerStateRepository.getLastSignature(programId);
         
         if (lastProcessedSlot > 0) {
           log.info("Resuming from previous state", {

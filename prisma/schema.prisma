@@ -54,3 +54,42 @@ model IndexerState {
   lastSignature String?
   updatedAt     DateTime @updatedAt
 }
+
+// 4. 이벤트 스트림 (Gap Filling용)
+// SSE 연결 시 놓친 이벤트를 조회하기 위한 테이블
+model EventStream {
+  id          String   @id @default(uuid()) // Primary Key (UUID)
+  eventId     String   @unique // Unique Event ID (for Last-Event-ID)
+  eventType   String   // 이벤트 타입 (예: 'user.ciphertext.confirmed', 'user.operation.completed')
+  targetOwner String?  // 대상 지갑 주소 (user 채널용)
+  payload     Json     // 이벤트 페이로드 (JSON)
+  signature   String?  // 트랜잭션 서명 (optional)
+  slot        BigInt?  // 블록 슬롯 (optional)
+  createdAt   DateTime @default(now())
+
+  // 빠른 조회를 위한 인덱스
+  @@index([targetOwner])
+  @@index([eventType])
+  @@index([slot])
+  @@index([createdAt])
+  @@index([eventId]) // Unique index는 자동 생성되지만 명시적으로 추가
+}
+
+// 5. 핸들 의존성 그래프 (Lineage Tracking)
+// 연산 결과와 입력 핸들 간의 관계를 추적
+model HandleDependency {
+  id            String   @id @default(uuid()) // Primary Key (UUID)
+  outputHandleId String   @unique // 결과 핸들 (Unique)
+  inputHandles   String[] // 입력 핸들 배열
+  operation      String   // 연산 타입 (예: 'ADD', 'SUB', 'AND', 'OR')
+  operationType  String   // 연산 타입 분류 ('Unary', 'Binary', 'Ternary')
+  signature      String?  // 트랜잭션 서명 (optional)
+  slot           BigInt?  // 블록 슬롯 (optional)
+  createdAt      DateTime @default(now())
+
+  // 빠른 조회를 위한 인덱스
+  @@index([outputHandleId])
+  @@index([operation])
+  @@index([operationType])
+  @@index([slot])
+}

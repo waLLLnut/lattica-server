@@ -3,7 +3,7 @@
 // Solana 트랜잭션 전에 암호문 데이터를 Redis에 저장
 
 import { NextRequest, NextResponse } from 'next/server';
-import { CiphertextStore } from '@/lib/store/ciphertext-store';
+import { CiphertextRepository } from '@/lib/store/ciphertext-repository';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('API:Ciphertext');
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Redis에 저장
-    await CiphertextStore.save(
+    await CiphertextRepository.save(
       handle,
       ciphertext,
       owner,

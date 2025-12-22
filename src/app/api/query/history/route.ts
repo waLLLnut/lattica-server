@@ -2,7 +2,7 @@
 // 현재 연결된 지갑의 연산 내역을 조회
 
 import { NextResponse } from 'next/server';
-import { OperationLogStore } from '@/lib/store/operation-log-store';
+import { OperationLogRepository } from '@/lib/store/operation-log-repository';
 
 export async function GET(request: Request) {
   try {
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const history = await OperationLogStore.getHistoryByCaller(
+    const history = await OperationLogRepository.getHistoryByCaller(
       caller,
       limit,
       offset
@@ -48,3 +48,4 @@ export async function GET(request: Request) {
     );
   }
 }
+
