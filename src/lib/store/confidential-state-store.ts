@@ -21,7 +21,11 @@ import { create } from 'zustand';
 import { temporal } from 'zundo';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { enableMapSet } from 'immer';
 import { get, set, del } from 'idb-keyval';
+
+// Enable Immer Map/Set support
+enableMapSet();
 import type { UserPubSubMessage } from '@/types/pubsub';
 import type {
   ClientStateItem,
@@ -323,7 +327,11 @@ export const useConfidentialStateStore = create<ConfidentialStateStore>()(
           // 1. Deterministic Input Handle Derivation
           const handle = deriveInputHandle(encryptedData);
 
-          // 2. State Entry: OPTIMISTIC (UI 즉시 반영)
+          // 2. 암호화 데이터를 Base64로 변환하여 IndexedDB에 저장
+          const ciphertextBase64 = btoa(JSON.stringify(encryptedData));
+          blobStorage.save(handle, ciphertextBase64); // Fire & Forget
+
+          // 3. State Entry: OPTIMISTIC (UI 즉시 반영)
           set((state) => {
             state.items.set(handle, {
               handle,
@@ -341,6 +349,20 @@ export const useConfidentialStateStore = create<ConfidentialStateStore>()(
         },
 
         requestOperation: async (op, inputs, owner, txSignature, clientTag) => {
+          // 0. 상태 전이 규칙 검증: 입력 핸들이 Store에 존재해야 함
+          const missingInputs: string[] = [];
+          for (const inputHandle of inputs) {
+            if (!get().items.has(inputHandle)) {
+              missingInputs.push(inputHandle);
+            }
+          }
+          
+          if (missingInputs.length > 0) {
+            const errorMessage = `[Store] requestOperation: State transition rule violated. Missing input handles in store: ${missingInputs.map(h => h.slice(0, 16) + '...').join(', ')}`;
+            console.error(errorMessage);
+            throw new Error(errorMessage);
+          }
+
           // 1. Deterministic Prediction (The "Oracle")
           let predictedHandle: string;
 
@@ -511,36 +533,74 @@ export const useConfidentialStateStore = create<ConfidentialStateStore>()(
           });
 
           switch (eventType) {
-            case 'user.ciphertext.registered':
-            case 'user.ciphertext.confirmed': {
-              if (
-                payload.type === 'user.ciphertext.registered' ||
-                payload.type === 'user.ciphertext.confirmed'
-              ) {
+            case 'user.ciphertext.registered': {
+              if (payload.type === 'user.ciphertext.registered') {
                 const handle = payload.handle;
                 const item = get().items.get(handle);
 
                 if (item) {
-                  // OPTIMISTIC 또는 SUBMITTING 상태였으면 확정
+                  // OPTIMISTIC 상태였으면 SUBMITTING으로 전이
+                  if (item.status === 'OPTIMISTIC') {
+                    set((state) => {
+                      const i = state.items.get(handle);
+                      if (i) {
+                        i.status = 'SUBMITTING';
+                        i.txSignature = payload.signature || i.txSignature;
+                      }
+                    });
+                  }
+                } else {
+                  // Store에 아이템이 없으면 새로 생성 (Gap Filling 또는 외부에서 등록된 경우)
+                  const owner = payload.owner || '';
+                  const clientTag = payload.clientTag || undefined;
+                  const now = Date.now();
+                  const blockTime = payload.blockTime ? payload.blockTime * 1000 : now; // blockTime은 초 단위이므로 밀리초로 변환
+                  set((state) => {
+                    state.items.set(handle, {
+                      handle,
+                      owner,
+                      txSignature: payload.signature || undefined,
+                      clientTag,
+                      status: 'SUBMITTING',
+                      createdAt: blockTime,
+                      confirmedAt: undefined,
+                      data: null,
+                      isCached: false,
+                    });
+                  });
+                }
+              }
+              break;
+            }
+            
+            case 'user.ciphertext.confirmed': {
+              if (payload.type === 'user.ciphertext.confirmed') {
+                const handle = payload.handle;
+                const item = get().items.get(handle);
+
+                if (item) {
+                  // OPTIMISTIC 또는 SUBMITTING 상태였으면 CONFIRMED로 전이
                   if (item.status === 'OPTIMISTIC' || item.status === 'SUBMITTING') {
                     await get().confirmTransaction(handle);
                   }
                 } else {
-                  // 새 아이템 추가 (확정 상태로)
-                  const newItem: ClientStateItem = {
-                    handle: payload.handle,
-                    owner: payload.owner,
-                    data: null,
-                    status: 'CONFIRMED',
-                    txSignature: payload.signature,
-                    clientTag: payload.clientTag,
-                    createdAt: payload.blockTime || Date.now(),
-                    confirmedAt: payload.blockTime || Date.now(),
-                    isCached: false,
-                  };
-
+                  // Store에 아이템이 없으면 새로 생성 (Gap Filling 또는 외부에서 등록된 경우)
+                  const owner = payload.owner || '';
+                  const clientTag = payload.clientTag || undefined;
+                  const now = Date.now();
+                  const blockTime = payload.blockTime ? payload.blockTime * 1000 : now; // blockTime은 초 단위이므로 밀리초로 변환
                   set((state) => {
-                    state.items.set(handle, newItem);
+                    state.items.set(handle, {
+                      handle,
+                      owner,
+                      txSignature: payload.signature || undefined,
+                      clientTag,
+                      status: 'CONFIRMED',
+                      createdAt: blockTime,
+                      confirmedAt: blockTime,
+                      data: null,
+                      isCached: false,
+                    });
                   });
                 }
               }

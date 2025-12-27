@@ -28,3 +28,4 @@ export function StepCard({ title, description, isActive, isCompleted, children }
     </fieldset>
   );
 }
+

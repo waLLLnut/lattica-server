@@ -37,3 +37,4 @@ export function useOperationHistoryQuery(limit = 20, offset = 0) {
     staleTime: 1000 * 2, // 2초간 Fresh (자주 갱신되므로 짧게)
   });
 }
+

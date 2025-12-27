@@ -11,6 +11,7 @@ interface ConfidentialVariableCardProps {
   cid?: string;
   color: string;
   onDecrypt?: () => void; // 복호화 버튼이 필요하다면 추가
+  actionButton?: React.ReactNode; // 카드 내부에 표시할 액션 버튼
 }
 
 export function ConfidentialVariableCard({ 
@@ -19,7 +20,8 @@ export function ConfidentialVariableCard({
   state, 
   ciphertext, 
   cid, 
-  color 
+  color,
+  actionButton
 }: ConfidentialVariableCardProps) {
   const isEncrypted = state === 'encrypted';
   const prevHandleRef = useRef<string | null>(null);
@@ -96,7 +98,7 @@ export function ConfidentialVariableCard({
           {getDisplayValue()}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: actionButton ? '8px' : '0' }}>
           <div style={{ fontSize: '10px', color: isChanging ? color : '#666', transition: 'color 0.3s ease' }}>
             {isEncrypted ? (isChanging ? 'RE-ENCRYPTED!' : 'ENCRYPTED') : cid ? 'REGISTERED' : 'INITIAL'}
           </div>
@@ -111,6 +113,11 @@ export function ConfidentialVariableCard({
             </div>
           )}
         </div>
+        {actionButton && (
+          <div style={{ marginTop: '8px' }}>
+            {actionButton}
+          </div>
+        )}
       </div>
     </>
   );

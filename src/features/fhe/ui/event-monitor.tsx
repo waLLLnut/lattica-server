@@ -64,7 +64,7 @@ export function EventMonitor() {
     onEvent: (message) => {
       const timestamp = Date.now();
       const entry: EventLogEntry = {
-        id: `${message.eventId}-${timestamp}`, // 고유 key 생성
+        id: `user-${message.eventId}-${timestamp}-${Math.random()}`, // channel 포함하여 고유 key 생성
         eventId: message.eventId,
         timestamp: new Date().toLocaleTimeString(),
         eventType: message.eventType,
@@ -109,7 +109,7 @@ export function EventMonitor() {
     onEvent: (message) => {
       const timestamp = Date.now();
       const entry: EventLogEntry = {
-        id: `${message.eventId}-${timestamp}`, // 고유 key 생성
+        id: `global-${message.eventId}-${timestamp}-${Math.random()}`, // channel 포함하여 고유 key 생성
         eventId: message.eventId,
         timestamp: new Date().toLocaleTimeString(),
         eventType: message.eventType,

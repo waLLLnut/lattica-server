@@ -28,22 +28,66 @@ export function DemoContent() {
       {/* Dashboard */}
       <StepCard title="Confidential Variables" isActive={true} isCompleted={!!logic.solHandle}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
-          <ConfidentialVariableCard 
-            label="(1) SOL Balance" 
-            value={logic.confidentialSOL} 
-            state={logic.solBalanceState} 
-            ciphertext={logic.ciphertexts.sol} 
-            cid={logic.solHandle} 
-            color="#3b82f6" 
-          />
-          <ConfidentialVariableCard 
-            label="(4) USDC Balance" 
-            value={logic.confidentialUSDC} 
-            state={logic.usdcBalanceState} 
-            ciphertext={logic.ciphertexts.usdc} 
-            cid={logic.usdcHandle} 
-            color="#f59e0b" 
-          />
+          <div>
+            <ConfidentialVariableCard 
+              label="(1) SOL Balance" 
+              value={logic.confidentialSOL} 
+              state={logic.solBalanceState} 
+              ciphertext={logic.solCiphertext || logic.ciphertexts.sol} 
+              cid={logic.solHandle} 
+              color="#3b82f6"
+              actionButton={!logic.solHandle ? (
+                <button 
+                  onClick={() => logic.handleInitializeBalance('sol')}
+                  disabled={!logic.publicKey || !logic.moduleReady}
+                  style={{ 
+                    width: '100%',
+                    padding: '4px 8px', 
+                    background: (!logic.publicKey || !logic.moduleReady) ? '#555' : '#3b82f6', 
+                    color: '#fff', 
+                    border: 'none', 
+                    cursor: (!logic.publicKey || !logic.moduleReady) ? 'not-allowed' : 'pointer', 
+                    fontWeight: 'bold',
+                    fontSize: '10px',
+                    opacity: (!logic.publicKey || !logic.moduleReady) ? 0.6 : 1,
+                    borderRadius: '4px'
+                  }}
+                >
+                  Initialize PDA
+                </button>
+              ) : undefined}
+            />
+          </div>
+          <div>
+            <ConfidentialVariableCard 
+              label="(4) USDC Balance" 
+              value={logic.confidentialUSDC} 
+              state={logic.usdcBalanceState} 
+              ciphertext={logic.usdcCiphertext || logic.ciphertexts.usdc} 
+              cid={logic.usdcHandle} 
+              color="#f59e0b"
+              actionButton={!logic.usdcHandle ? (
+                <button 
+                  onClick={() => logic.handleInitializeBalance('usdc')}
+                  disabled={!logic.publicKey || !logic.moduleReady}
+                  style={{ 
+                    width: '100%',
+                    padding: '4px 8px', 
+                    background: (!logic.publicKey || !logic.moduleReady) ? '#555' : '#f59e0b', 
+                    color: '#fff', 
+                    border: 'none', 
+                    cursor: (!logic.publicKey || !logic.moduleReady) ? 'not-allowed' : 'pointer', 
+                    fontWeight: 'bold',
+                    fontSize: '10px',
+                    opacity: (!logic.publicKey || !logic.moduleReady) ? 0.6 : 1,
+                    borderRadius: '4px'
+                  }}
+                >
+                  Initialize PDA
+                </button>
+              ) : undefined}
+            />
+          </div>
           {/* Input Preview Card */}
           {logic.ciphertexts[logic.operation] && (
              <ConfidentialVariableCard
@@ -122,7 +166,19 @@ export function DemoContent() {
         isActive={!!logic.regTxSig} 
         isCompleted={!!logic.opTxSig}
       >
-        <button onClick={logic.handleSubmitJob} style={{ padding: '10px 20px', background: '#0f0', color: '#000', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+        <button 
+          onClick={logic.handleSubmitJob} 
+          disabled={!logic.publicKey || !logic.regTxSig}
+          style={{ 
+            padding: '10px 20px', 
+            background: (!logic.publicKey || !logic.regTxSig) ? '#555' : '#0f0', 
+            color: '#000', 
+            border: 'none', 
+            cursor: (!logic.publicKey || !logic.regTxSig) ? 'not-allowed' : 'pointer', 
+            fontWeight: 'bold',
+            opacity: (!logic.publicKey || !logic.regTxSig) ? 0.6 : 1
+          }}
+        >
           Submit Operation Request
         </button>
         {logic.opTxSig && (

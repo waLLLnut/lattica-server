@@ -23,3 +23,4 @@ export function useCiphertextQuery(handle: string | null) {
     retry: 2,
   });
 }
+

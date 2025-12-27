@@ -76,3 +76,4 @@ export const BlinkComponent: React.FC<{
     </div>
   )
 }
+

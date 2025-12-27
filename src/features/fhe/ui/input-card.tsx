@@ -63,3 +63,4 @@ export function InputCard({ label, onRegistered }: InputCardProps) {
     </Card>
   )
 }
+

@@ -211,8 +211,20 @@ export class HostProgramsIndexer {
       }
     }
 
-    // Polling 시작 (동적 interval 사용)
-    this.startPolling();
+    // Polling 시작 (setInterval로 주기적으로 pollForNewTransactions 호출)
+    this.isRunning = true;
+    this.pollIntervalId = setInterval(() => {
+      this.pollForNewTransactions().catch((error) => {
+        log.error("Polling interval error", error);
+        this.handleError(error);
+      });
+    }, this.currentPollInterval);
+    
+    // 즉시 한 번 실행
+    this.pollForNewTransactions().catch((error) => {
+      log.error("Initial poll error", error);
+      this.handleError(error);
+    });
   }
 
   /**

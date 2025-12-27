@@ -6,10 +6,10 @@ import { CiphertextRepository } from '@/lib/store/ciphertext-repository';
 
 export async function GET(
   request: Request,
-  { params }: { params: { handle: string } }
+  { params }: { params: Promise<{ handle: string }> }
 ) {
   try {
-    const handle = params.handle;
+    const { handle } = await params;
 
     if (!handle) {
       return NextResponse.json(
