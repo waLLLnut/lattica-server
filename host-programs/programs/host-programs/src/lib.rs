@@ -131,7 +131,11 @@ pub mod host_programs {
 // -----------------------------------------------------------------------
 
 #[derive(Accounts)]
-pub struct Initialize {}
+pub struct Initialize<'info> {
+    #[account(executable)]
+    /// CHECK: This is the program itself
+    pub program: UncheckedAccount<'info>,
+}
 
 #[derive(Accounts)]
 pub struct RegisterInputHandle<'info> {

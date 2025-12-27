@@ -1,6 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program, EventParser } from "@coral-xyz/anchor";
 import { HostPrograms } from "../target/types/host_programs";
+import { LendingDemo } from "../target/types/lending_demo";
 import idl from "../target/idl/host_programs.json";
 import { sha256 } from "@noble/hashes/sha256";
 import { PublicKey } from "@solana/web3.js";
@@ -291,7 +292,10 @@ describe("host-programs", () => {
   const wallet = provider.wallet as anchor.Wallet;
 
   it("Initialize program", async () => {
-    await program.methods.initialize().rpc();
+    await program.methods
+      .initialize()
+      .accounts({ program: program.programId })
+      .rpc();
   });
 
   it("Register input handle and verify event", async () => {
@@ -485,5 +489,159 @@ describe("host-programs", () => {
       Buffer.from(add3ResultHandle),
       "result_handle이 TypeScript에서 계산한 값과 바이트 단위로 일치하지 않습니다"
     ).to.deep.equal(Buffer.from(expectedAdd3ResultHandle));
+  });
+});
+
+describe("lending-demo", () => {
+  const provider = anchor.AnchorProvider.env();
+  anchor.setProvider(provider);
+
+  const lendingProgram = anchor.workspace.LendingDemo as Program<LendingDemo>;
+  const hostProgram = anchor.workspace.HostPrograms as Program<HostPrograms>;
+  const wallet = provider.wallet as anchor.Wallet;
+
+  // Rust enum 순서에 따른 OpCode 매핑
+  // pub enum Fhe16BinaryOp { Add, Sub, Ge }
+  const LENDING_BIN_OPS = {
+    Add: 0,
+    Sub: 1,
+    Ge: 2,
+  };
+  // pub enum Fhe16TernaryOp { Select }
+  const LENDING_TER_OPS = {
+    Select: 0,
+  };
+
+  it("Initialize Lending Demo", async () => {
+    await lendingProgram.methods.initialize().rpc();
+  });
+
+  it("Deposit: SOL + Amount -> Final Handle Verification", async () => {
+    const solBalance = new Uint8Array(32);
+    solBalance.fill(10);
+    const depositAmount = new Uint8Array(32);
+    depositAmount.fill(5);
+
+    const expectedFinalHandle = deriveBinaryHandle(
+      LENDING_BIN_OPS.Add,
+      solBalance,
+      depositAmount,
+      hostProgram.programId 
+    );
+
+    const tx = await lendingProgram.methods
+      .deposit(Array.from(solBalance), Array.from(depositAmount))
+      .accounts({
+        caller: wallet.publicKey,
+      })
+      .rpc();
+
+    await provider.connection.confirmTransaction(tx, "confirmed");
+    const txInfo = await provider.connection.getTransaction(tx, { 
+      commitment: "confirmed",
+      maxSupportedTransactionVersion: 0,
+    });
+    
+    if (!txInfo) {
+      throw new Error(`Transaction ${tx} not found`);
+    }
+    
+    const eventParser = new EventParser(lendingProgram.programId, lendingProgram.coder);
+    let eventFound = false;
+    const allEvents: string[] = [];
+    
+    for (const event of eventParser.parseLogs(txInfo.meta?.logMessages ?? [])) {
+      allEvents.push(event.name);
+      const camelCaseName = "depositCompleted";
+      if (event.name === "DepositCompleted" || event.name === camelCaseName) {
+        eventFound = true;
+        const finalHandle = safeGetUint8Array(event.data, "final_handle");
+        
+        expect(Buffer.from(finalHandle)).to.deep.equal(
+          Buffer.from(expectedFinalHandle), 
+          "Deposit 결과 핸들이 예상값과 다릅니다."
+        );
+        break;
+      }
+    }
+    
+    if (!eventFound) {
+      void console.log(`Available events: ${allEvents.join(", ")}`);
+    }
+    
+    expect(eventFound, `DepositCompleted event not found. Available events: ${allEvents.join(", ")}`).to.be.true;
+  });
+
+  it("Withdraw: Chained Operations (GE -> SUB -> SELECT)", async () => {
+    const usdcBalance = new Uint8Array(32);
+    usdcBalance.fill(100);
+    const withdrawAmount = new Uint8Array(32);
+    withdrawAmount.fill(30);
+
+    const expectedGeHandle = deriveBinaryHandle(
+      LENDING_BIN_OPS.Ge,
+      usdcBalance,
+      withdrawAmount,
+      hostProgram.programId
+    );
+
+    const expectedSubHandle = deriveBinaryHandle(
+      LENDING_BIN_OPS.Sub,
+      usdcBalance,
+      withdrawAmount,
+      hostProgram.programId
+    );
+
+    const expectedFinalHandle = deriveTernaryHandle(
+      LENDING_TER_OPS.Select,
+      expectedGeHandle,
+      expectedSubHandle,
+      usdcBalance,
+      hostProgram.programId
+    );
+
+    const tx = await lendingProgram.methods
+      .withdraw(Array.from(usdcBalance), Array.from(withdrawAmount))
+      .accounts({
+        caller: wallet.publicKey,
+      })
+      .rpc();
+
+    await provider.connection.confirmTransaction(tx, "confirmed");
+    const txInfo = await provider.connection.getTransaction(tx, { 
+      commitment: "confirmed",
+      maxSupportedTransactionVersion: 0,
+    });
+
+    if (!txInfo) {
+      throw new Error(`Transaction ${tx} not found`);
+    }
+
+    const eventParser = new EventParser(lendingProgram.programId, lendingProgram.coder);
+    let eventFound = false;
+    const allEvents: string[] = [];
+    
+    for (const event of eventParser.parseLogs(txInfo.meta?.logMessages ?? [])) {
+      allEvents.push(event.name);
+      const camelCaseName = "withdrawCompleted";
+      if (event.name === "WithdrawCompleted" || event.name === camelCaseName) {
+        eventFound = true;
+        
+        const geResult = safeGetUint8Array(event.data, "ge_result_handle");
+        const subResult = safeGetUint8Array(event.data, "sub_result_handle");
+        const finalResult = safeGetUint8Array(event.data, "final_handle");
+
+        expect(Buffer.from(geResult)).to.deep.equal(Buffer.from(expectedGeHandle), "GE Handle Mismatch");
+        expect(Buffer.from(subResult)).to.deep.equal(Buffer.from(expectedSubHandle), "SUB Handle Mismatch");
+        expect(Buffer.from(finalResult)).to.deep.equal(Buffer.from(expectedFinalHandle), "SELECT (Final) Handle Mismatch");
+        break;
+      }
+    }
+    
+    if (!eventFound) {
+      void console.log(`Available events: ${allEvents.join(", ")}`);
+    }
+    
+    expect(eventFound, `WithdrawCompleted event not found. Available events: ${allEvents.join(", ")}`).to.be.true;
   });
 });

@@ -7,13 +7,14 @@ skip-lint = false
 
 [programs.localnet]
 host_programs = "FkLGYGk2bypUXgpGmcsCTmKZo6LCjHaXswbhY1LNGAKj"
+lending-demo = "fJBJDymb2ZbFoQguniP5pDLDTJYqVMACktZW7ZEeGRt"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
 cluster = "localnet"
-wallet = "/Users/ham-yunsig/Documents/github/lattica/host-programs/ham-yunsig-dev-keypair.json"
+wallet = "~/Documents/github/lattica/host-programs/ham-yunsig-dev-keypair.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\""
